@@ -380,6 +380,11 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     private func attach(_ attachment: ComposerAttachmentType) {
         switch attachment {
         case .camera:
+            guard appMediator.isCameraAvailable else {
+                MXLog.info("Camera unavailable, not presenting the picker.")
+                displayErrorToast(L10n.errorCameraUnavailable)
+                return
+            }
             actionsSubject.send(.displayCameraPicker)
         case .photoLibrary:
             actionsSubject.send(.displayMediaPicker)
