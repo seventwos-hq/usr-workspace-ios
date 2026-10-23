@@ -859,20 +859,52 @@ final class TimelineViewModelTests {
         try await deferred.fulfill()
     }
     
+    // MARK: - Attachments
+    
+    @Test
+    func cameraAttachmentOpensThePickerWhenTheCameraIsAvailable() async throws {
+        let viewModel = makeViewModel(timelineController: TimelineControllerMock(.init()))
+        
+        let deferred = deferFulfillment(viewModel.actions) { action in
+            guard case .displayCameraPicker = action else { return false }
+            return true
+        }
+        viewModel.process(composerAction: .attach(.camera))
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    func cameraAttachmentShowsAnErrorWhenTheCameraIsUnavailable() async throws {
+        let userIndicatorController = UserIndicatorControllerMock()
+        let viewModel = makeViewModel(timelineController: TimelineControllerMock(.init()),
+                                      userIndicatorController: userIndicatorController,
+                                      appMediator: AppMediatorMock(.init(isCameraAvailable: false)))
+        
+        let deferredFailure = deferFailure(viewModel.actions, timeout: .seconds(1)) { action in
+            guard case .displayCameraPicker = action else { return false }
+            return true
+        }
+        viewModel.process(composerAction: .attach(.camera))
+        try await deferredFailure.fulfill()
+        
+        #expect(userIndicatorController.submitIndicatorDelayReceivedArguments?.indicator.title == L10n.errorCameraUnavailable)
+    }
+    
     // MARK: - Helpers
     
     private func makeViewModel(roomProxy: JoinedRoomProxyProtocol? = nil,
                                focussedEventID: String? = nil,
                                timelineController: TimelineControllerProtocol,
                                userIndicatorController: UserIndicatorControllerProtocol = UserIndicatorControllerMock(),
-                               appSettings: AppSettings = .volatile()) -> TimelineViewModel {
+                               appSettings: AppSettings = .volatile(),
+                               appMediator: AppMediatorProtocol = AppMediatorMock(.init())) -> TimelineViewModel {
         TimelineViewModel(roomProxy: roomProxy ?? JoinedRoomProxyMock(.init(name: "")),
                           focussedEventID: focussedEventID,
                           timelineController: timelineController,
                           userSession: UserSessionMock(.init()),
                           mediaPlayerProvider: MediaPlayerProviderMock(),
                           userIndicatorController: userIndicatorController,
-                          appMediator: AppMediatorMock(.init()),
+                          appMediator: appMediator,
                           appSettings: appSettings,
                           analyticsService: AnalyticsServiceMock(.init()),
                           emojiProvider: EmojiProvider(appSettings: appSettings),

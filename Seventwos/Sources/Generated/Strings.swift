@@ -1112,6 +1112,8 @@ internal nonisolated enum L10n {
   internal static var emojiPickerSearchPlaceholder: String { return L10n.tr("Localizable", "emoji_picker_search_placeholder") }
   /// Your account provider needs to be upgraded to support Matrix Authentication Service and account creation.
   internal static var errorAccountCreationNotPossible: String { return L10n.tr("Localizable", "error_account_creation_not_possible") }
+  /// The camera is not available
+  internal static var errorCameraUnavailable: String { return L10n.tr("Localizable", "error_camera_unavailable") }
   /// Failed creating the permalink
   internal static var errorFailedCreatingThePermalink: String { return L10n.tr("Localizable", "error_failed_creating_the_permalink") }
   /// %1$@ could not load the map. Please try again later.

@@ -14,9 +14,10 @@ struct CreateRoomScreenCoordinatorParameters {
     let spaceSelectionMode: CreateRoomScreenSpaceSelectionMode
     let shouldShowCancelButton: Bool
     let userSession: UserSessionProtocol
+    let appMediator: AppMediatorProtocol
+    let analytics: AnalyticsServiceProtocol
     let userIndicatorController: UserIndicatorControllerProtocol
     let appSettings: AppSettings
-    let analytics: AnalyticsServiceProtocol
 }
 
 enum CreateRoomScreenCoordinatorAction {
@@ -39,6 +40,7 @@ final class CreateRoomScreenCoordinator: CoordinatorProtocol {
                                               spaceSelectionMode: parameters.spaceSelectionMode,
                                               shouldShowCancelButton: parameters.shouldShowCancelButton,
                                               userSession: parameters.userSession,
+                                              appMediator: parameters.appMediator,
                                               analytics: parameters.analytics,
                                               userIndicatorController: parameters.userIndicatorController,
                                               appSettings: parameters.appSettings)
