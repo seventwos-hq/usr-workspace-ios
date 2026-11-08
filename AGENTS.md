@@ -24,10 +24,20 @@ Swift / SwiftUI, Matrix Rust SDK (UniFFI bindings via SwiftPM), XcodeGen (`proje
 - Dev server is Linux: Xcode builds/tests cannot run there.
 
 ## Branching
-Base branch `develop`. Agents work on `card/<id>-<slug>` branches; never push to main/develop. Changes land via PR reviewed by Al (CPO).
+Base branch `develop`. Agents work on `card/<id>-<slug>` branches; never push to main/develop. Changes land via PR and must satisfy the existing repository review rules (including `CODEOWNERS`, currently `* @a-tcp` plus path-specific owners). Al (CPO) signs off Forgejo progression only; this does not replace CODEOWNERS review.
 
-## Versioning
-Semver tags `vX.Y.Z`. Al signs off releases. (Repo also has an automatic-calendar-version workflow; check before tagging.)
+## Versioning (existing practice)
+- Current convention is CalVer `YY.MM.PATCH` (e.g. `MARKETING_VERSION: 26.09.2` in `project.yml`).
+- Release tags are `release/YY.MM.PATCH` (latest seen: `release/26.09.1`); older legacy tags are `v1.0.0.<yyyymmddhhmm>`. Plain semver `vX.Y.Z` is NOT the current convention.
+- `.github/workflows/automatic-calendar-version.yml` (manual dispatch) bumps year/month and resets patch; patch bumps are done by the release script. Check these before tagging.
+
+## Proposed company cadence (NOT current practice)
+Proposal only, not adopted or implemented: weekly sprints, with a semver release every 2 sprints. No versioning or check rules have been changed to match it; until approved, follow the existing CalVer convention above.
+
+## Authority
+- Al (CPO) signs off Forgejo progression only.
+- Tobo owns the GitHub integration.
+- Production releases require Alvin's approval.
 
 ## Rules
 - Keep diffs small; update `.agent/state.md` each step.
