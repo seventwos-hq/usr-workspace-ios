@@ -24,7 +24,7 @@ Swift / SwiftUI, Matrix Rust SDK (UniFFI bindings via SwiftPM), XcodeGen (`proje
 - Dev server is Linux: Xcode builds/tests cannot run there.
 
 ## Branching
-Base branch `develop`. Agents work on `card/<id>-<slug>` branches; never push to main/develop. Changes land via PR and must satisfy the existing repository review rules (including `CODEOWNERS`, currently `* @a-tcp` plus path-specific owners). Al (CPO) signs off Forgejo progression only; this does not replace CODEOWNERS review.
+Base branch `develop`. Agents work on `card/<id>-<slug>` branches; never push to main/develop. Changes land via PR under the [owner-led merge rules](.github/copilot-instructions.md#pull-requests-and-merge-authority) and [autonomous-review policy](.github/instructions/autonomous-review.instructions.md). `CODEOWNERS` records ownership, not an additional approval gate; check the live branch rules and preserve required checks, applicable independent review, thread resolution and action authorisation. Al (CPO) signs off Forgejo progression only, not every GitHub PR.
 
 ## Versioning (existing practice)
 - Current convention is CalVer `YY.MM.PATCH` (e.g. `MARKETING_VERSION: 26.09.2` in `project.yml`).
