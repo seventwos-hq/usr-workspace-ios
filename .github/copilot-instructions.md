@@ -11,7 +11,7 @@ Follow [Autonomous review and separation of duties](instructions/autonomous-revi
 - Agents must check the latest-head Copilot review and address valid findings before recommending merge. Automatic review requests are not a GitHub-enforced review-completion gate and depend on Copilot access/credits; report unavailable or pending review as a blocker, not a completed review.
 - Preserve existing security/review agents, required checks, and unrelated protections. Do not impersonate a human approver, switch accounts to manufacture approval, bypass failed gates, or reintroduce cross-user approval requirements.
 - This policy removes only cross-user PR approval requirements. It does not authorize an agent to merge, deploy, publish, spend money, or perform destructive actions without the authorization otherwise required for that task.
-- Read live GitHub rules for the target branch when resuming PR work. Repository instructions record intent; Graphify is a derived index, not authority for external GitHub settings. Refresh it through the existing workflow after documentation merges; do not claim it has learned unindexed changes.
+- Read live GitHub rules for the target branch when resuming PR work. Repository instructions record intent, not authority for external GitHub settings.
 
 ## Efficient execution and delegation
 
