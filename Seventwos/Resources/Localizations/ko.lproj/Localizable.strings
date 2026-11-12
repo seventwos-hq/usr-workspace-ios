@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Create account";
 "screen_change_server_subtitle" = "서버의 주소는 무엇인가요?";
 "screen_change_server_textfield_footer_login" = "If your account is provided by your company or a community, then change the account provider (example: companyname.com).";
-"screen_change_server_textfield_footer_register" = "Create an account on matrix.org for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).";
+"screen_change_server_textfield_footer_register" = "Create an account on workspace.seventwos.org for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).";
 "screen_change_server_textfield_header" = "Account provider";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "서버 선택";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "가시성";
 "screen_security_and_privacy_title" = "보안 및 개인정보 보호";
 "screen_server_confirmation_change_server" = "계정 제공자 변경";
-"screen_server_confirmation_message_login_element_dot_io" = "Element 직원을 위한 전용 서버.";
+"screen_server_confirmation_message_login_element_dot_io" = "Seventwos 직원을 위한 전용 서버.";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix 는 안전하고 분산된 커뮤니케이션을 위한 개방형 네트워크입니다.";
 "screen_server_confirmation_message_register" = "이곳이 귀하의 대화 공간입니다 — 이메일 제공업체를 사용해 이메일을 관리하는 것처럼 말이죠.";
 "screen_server_confirmation_title_login" = "당신은 %1$@ 에 로그인하려 합니다";

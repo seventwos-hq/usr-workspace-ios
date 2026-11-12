@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Create account";
 "screen_change_server_subtitle" = "Quina és l'adreça del teu servidor?";
 "screen_change_server_textfield_footer_login" = "If your account is provided by your company or a community, then change the account provider (example: companyname.com).";
-"screen_change_server_textfield_footer_register" = "Create an account on matrix.org for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).";
+"screen_change_server_textfield_footer_register" = "Create an account on workspace.seventwos.org for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).";
 "screen_change_server_textfield_header" = "Account provider";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "Selecciona el teu servidor";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "Visibilitat";
 "screen_security_and_privacy_title" = "Seguretat i privadesa";
 "screen_server_confirmation_change_server" = "Canvia el proveïdor del compte";
-"screen_server_confirmation_message_login_element_dot_io" = "Servidor privat per a treballadors d'Element.";
+"screen_server_confirmation_message_login_element_dot_io" = "Servidor privat per a treballadors d'Seventwos.";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix és una xarxa oberta per a comunicacions segures i descentralitzades.";
 "screen_server_confirmation_message_register" = "Aquí és on es guardaran els teus xats, de manera similar a utilitzar un proveïdor de correu electrònic per guardar els teus correus electrònics.";
 "screen_server_confirmation_title_login" = "Estàs a punt d'iniciar sessió a %1$@";

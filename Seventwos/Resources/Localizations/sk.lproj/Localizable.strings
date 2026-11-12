@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Create account";
 "screen_change_server_subtitle" = "Aká je adresa vášho servera?";
 "screen_change_server_textfield_footer_login" = "If your account is provided by your company or a community, then change the account provider (example: companyname.com).";
-"screen_change_server_textfield_footer_register" = "Create an account on matrix.org for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).";
+"screen_change_server_textfield_footer_register" = "Create an account on workspace.seventwos.org for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).";
 "screen_change_server_textfield_header" = "Account provider";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "Vyberte svoj server";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "Viditeľnosť";
 "screen_security_and_privacy_title" = "Bezpečnosť a súkromie";
 "screen_server_confirmation_change_server" = "Zmeniť poskytovateľa účtu";
-"screen_server_confirmation_message_login_element_dot_io" = "Súkromný server pre zamestnancov spoločnosti Element.";
+"screen_server_confirmation_message_login_element_dot_io" = "Súkromný server pre zamestnancov spoločnosti Seventwos.";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix je otvorená sieť pre bezpečnú a decentralizovanú komunikáciu.";
 "screen_server_confirmation_message_register" = "Tu budú žiť vaše konverzácie - podobne ako používate poskytovateľa e-mailových služieb na uchovávanie e-mailov.";
 "screen_server_confirmation_title_login" = "Chystáte sa prihlásiť do %1$@";

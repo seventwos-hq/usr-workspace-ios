@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Creați un cont";
 "screen_change_server_subtitle" = "Care este adresa serverului dumneavoastră?";
 "screen_change_server_textfield_footer_login" = "Dacă contul este furnizat de compania dumneavoastră sau de o comunitate, schimbați furnizorul contului (exemplu: numecompanie.com).";
-"screen_change_server_textfield_footer_register" = "Creați un cont gratuit pe matrix.org. Dacă doriți să creați un cont la un alt furnizor, schimbați-l în consecință (exemplu: numecomunitate.org).";
+"screen_change_server_textfield_footer_register" = "Creați un cont gratuit pe workspace.seventwos.org. Dacă doriți să creați un cont la un alt furnizor, schimbați-l în consecință (exemplu: numecomunitate.org).";
 "screen_change_server_textfield_header" = "Furnizor de cont";
 "screen_change_server_textfield_placeholder" = "exemplu.ro";
 "screen_change_server_title" = "Selectați serverul dumneavoastra";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "Vizibilitate";
 "screen_security_and_privacy_title" = "Securitate & confidențialitate";
 "screen_server_confirmation_change_server" = "Schimbați furnizorul contului";
-"screen_server_confirmation_message_login_element_dot_io" = "Un server privat pentru angajații Element.";
+"screen_server_confirmation_message_login_element_dot_io" = "Un server privat pentru angajații Seventwos.";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix este o rețea deschisă pentru o comunicare sigură și descentralizată.";
 "screen_server_confirmation_message_register" = "Aici vor trăi conversațiile dvs. - la fel cum ați folosi un furnizor de e-mail pentru a vă păstra e-mailurile.";
 "screen_server_confirmation_title_login" = "Sunteți pe cale să vă conectați la %1$@";
