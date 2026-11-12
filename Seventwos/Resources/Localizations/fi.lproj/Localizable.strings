@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Luo tili";
 "screen_change_server_subtitle" = "Mikä on palvelimesi osoite?";
 "screen_change_server_textfield_footer_login" = "Jos tilisi on yrityksesi tai yhteisön tarjoama, vaihda palveluntarjoaja (esimerkki: companyname.com).";
-"screen_change_server_textfield_footer_register" = "Luo tili matrix.org -palvelimelle ilmaiseksi. Jos haluat luoda tilin eri palveluntarjoajan kautta, muuta sitä vastaavasti (esimerkiksi: communityname.org).";
+"screen_change_server_textfield_footer_register" = "Luo tili workspace.seventwos.org -palvelimelle ilmaiseksi. Jos haluat luoda tilin eri palveluntarjoajan kautta, muuta sitä vastaavasti (esimerkiksi: communityname.org).";
 "screen_change_server_textfield_header" = "Palveluntarjoaja";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "Valitse palvelimesi";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "Näkyvyys";
 "screen_security_and_privacy_title" = "Turvallisuus ja yksityisyys";
 "screen_server_confirmation_change_server" = "Vaihda palveluntarjoajaa";
-"screen_server_confirmation_message_login_element_dot_io" = "Yksityinen palvelin Elementin työntekijöille.";
+"screen_server_confirmation_message_login_element_dot_io" = "Yksityinen palvelin Seventwosin työntekijöille.";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix on avoin verkko turvallista, hajautettua viestintää varten.";
 "screen_server_confirmation_message_register" = "Keskustelusi asuvat täällä — aivan kuten aivan kuten käyttäisit sähköpostipalveluntarjoajaa sähköpostiesi säilyttämiseen.";
 "screen_server_confirmation_title_login" = "Olet kirjautumassa sisään %1$@-palvelimelle";

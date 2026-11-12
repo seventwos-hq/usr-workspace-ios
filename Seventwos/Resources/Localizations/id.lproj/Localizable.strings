@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Buat akun";
 "screen_change_server_subtitle" = "Apa alamat server Anda?";
 "screen_change_server_textfield_footer_login" = "Jika akun Anda disediakan oleh perusahaan atau komunitas Anda, maka ubah penyedia akun (contoh: companyname.com).";
-"screen_change_server_textfield_footer_register" = "Buat akun di matrix.org secara gratis. Jika anda ingin membuat akun dengan penyedia lain, ubah sesuai kebutuhan (contoh: communityname.org).";
+"screen_change_server_textfield_footer_register" = "Buat akun di workspace.seventwos.org secara gratis. Jika anda ingin membuat akun dengan penyedia lain, ubah sesuai kebutuhan (contoh: communityname.org).";
 "screen_change_server_textfield_header" = "Penyedia akun";
 "screen_change_server_textfield_placeholder" = "contoh.com";
 "screen_change_server_title" = "Pilih server Anda";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "Visibilitas";
 "screen_security_and_privacy_title" = "Keamanan & privasi";
 "screen_server_confirmation_change_server" = "Ubah penyedia akun";
-"screen_server_confirmation_message_login_element_dot_io" = "Server pribadi untuk karyawan Element.";
+"screen_server_confirmation_message_login_element_dot_io" = "Server pribadi untuk karyawan Seventwos.";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix adalah jaringan terbuka untuk komunikasi yang aman dan terdesentralisasi.";
 "screen_server_confirmation_message_register" = "Di sinilah percakapan Anda akan berlangsung — sama seperti Anda menggunakan penyedia surel untuk menyimpan surel Anda.";
 "screen_server_confirmation_title_login" = "Anda akan masuk ke %1$@";

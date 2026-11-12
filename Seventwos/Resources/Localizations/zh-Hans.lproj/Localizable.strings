@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "创建账户";
 "screen_change_server_subtitle" = "你的服务器地址是什么？";
 "screen_change_server_textfield_footer_login" = "如果你的账户由你的公司或社区提供，则应更改账户提供者（例如：companyname.com）。";
-"screen_change_server_textfield_footer_register" = "在 matrix.org 创建免费账户。如果你想使用其它服务提供者创建账户，请相应地更改域名（例如：communityname.org）。";
+"screen_change_server_textfield_footer_register" = "在 workspace.seventwos.org 创建免费账户。如果你想使用其它服务提供者创建账户，请相应地更改域名（例如：communityname.org）。";
 "screen_change_server_textfield_header" = "账户提供者";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "选择服务器";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "可见性";
 "screen_security_and_privacy_title" = "安全与隐私";
 "screen_server_confirmation_change_server" = "更改账户提供者";
-"screen_server_confirmation_message_login_element_dot_io" = "专为 Element 员工提供的私人服务器。";
+"screen_server_confirmation_message_login_element_dot_io" = "专为 Seventwos 员工提供的私人服务器。";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix 是一个用于安全、去中心化通信的开放网络。";
 "screen_server_confirmation_message_register" = "这是你的对话将存在的地方，就像你使用邮件提供者来存储电子邮件那样。";
 "screen_server_confirmation_title_login" = "即将登录 %1$@";
