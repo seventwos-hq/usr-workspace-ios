@@ -61,7 +61,7 @@ run_gitleaks() {
   echo "gitleaks range: $r"
   # Trusted rules only: config and ignore file come from the protected default branch, never from the proposed tree or a prior branch tip.
   # (gitleaks would otherwise auto-load ./.gitleaks.toml / ./.gitleaksignore from the checkout.)
-  local base cfgf ign; base="origin/${DEFAULT_BRANCH:-main}"
+  local base cfgf ign; base="refs/remotes/origin/${DEFAULT_BRANCH:-main}"
   cfgf="$TOOLS/gitleaks-trusted.toml"; ign="$TOOLS/gitleaksignore-trusted"
   if ! git show "${base}:.gitleaks.toml" > "$cfgf" 2>/dev/null; then
     printf '[extend]\nuseDefault = true\n' > "$cfgf"
