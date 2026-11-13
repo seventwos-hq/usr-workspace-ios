@@ -59,10 +59,18 @@ run_gitleaks() {
   tar -xzf "$TOOLS/gl.tgz" -C "$TOOLS" gitleaks
   local r; r="$(range_args)"
   echo "gitleaks range: $r"
-  local cfg=()
-  [ -f .gitleaks.toml ] && cfg=(--config .gitleaks.toml)
+  # Trusted rules only: config and ignore file come from the BASE revision, never from the proposed tree.
+  # (gitleaks would otherwise auto-load ./.gitleaks.toml / ./.gitleaksignore from the checkout.)
+  local base cfgf ign; base="$(base_commit)"
+  cfgf="$TOOLS/gitleaks-trusted.toml"; ign="$TOOLS/gitleaksignore-trusted"
+  if ! git show "${base}:.gitleaks.toml" > "$cfgf" 2>/dev/null; then
+    printf '[extend]\nuseDefault = true\n' > "$cfgf"
+  fi
+  git show "${base}:.gitleaksignore" > "$ign" 2>/dev/null || : > "$ign"
+  # --diff-merges=first-parent: include patches for merge commits so secrets added only in conflict resolution are scanned.
   # shellcheck disable=SC2086
-  "$TOOLS/gitleaks" git "${cfg[@]}" --log-opts="$r" --redact --exit-code 1 --no-banner .
+  "$TOOLS/gitleaks" git --config "$cfgf" --gitleaks-ignore-path "$ign" --ignore-gitleaks-allow \
+    --log-opts="--diff-merges=first-parent $r" --redact --exit-code 1 --no-banner .
 }
 
 LOCK_RE='(^|/)(Cargo\.lock|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|Package\.resolved|gradle\.lockfile|deny\.toml)$'
