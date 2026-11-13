@@ -85,7 +85,7 @@ run_gitleaks() {
     --log-opts="--diff-merges=first-parent $r" --redact --exit-code 1 --no-banner .
 }
 
-LOCK_RE='(^|/)(Cargo\.lock|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|Package\.resolved|gradle\.lockfile|deny\.toml)$'
+LOCK_RE='(^|/)(Cargo\.toml|Cargo\.lock|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|Package\.resolved|gradle\.lockfile|deny\.toml)$'
 
 run_deps() {
   local base; base="$(base_commit)"
@@ -95,7 +95,7 @@ run_deps() {
   grep -azE "$LOCK_RE" "$alln" > "$changed" || true
   if [ ! -s "$changed" ]; then echo "no lockfile or deny.toml changed; skipping"; exit 0; fi
   echo "changed dependency files:"; tr '\0' '\n' < "$changed"
-  grep -azvE '(^|/)deny\.toml$' "$changed" > "$lockfiles" || true
+  grep -azvE '(^|/)(deny|Cargo)\.toml$' "$changed" > "$lockfiles" || true
   local rc=0
   if [ -s "$lockfiles" ]; then
     fetch "https://github.com/google/osv-scanner/releases/download/v${OSV_VERSION}/osv-scanner_linux_amd64" "$OSV_SHA256" "$TOOLS/osv-scanner"
@@ -103,12 +103,31 @@ run_deps() {
     osv_diff "$base" "$lockfiles" || rc=$?
     [ "$rc" -le 1 ] || { echo "osv-scanner stage failed (exit $rc)"; exit "$rc"; }
   fi
-  # Decided by the head having a Cargo manifest, never by the proposed deny.toml existing: deleting the policy file
-  # must not skip enforcement (the trusted or built-in policy is applied regardless).
-  if grep -azqE '(^|/)(Cargo\.lock|deny\.toml)$' "$changed" && [ -f Cargo.toml ]; then
-    local drc=0
-    deny_diff "$base" || drc=$?
-    [ "$drc" -le "$rc" ] || rc=$drc   # keep the worst code; never let a later pass mask an earlier error
+  # cargo-deny need is decided from ANY Cargo manifest/lockfile in the base tree, the head tree or the changed list,
+  # never from a root Cargo.toml or the proposed deny.toml: moving/removing the root manifest, adding a nested Rust
+  # project or deleting the policy file must not skip enforcement (trusted or built-in policy applies regardless).
+  local cargo_re='(^|/)Cargo\.(toml|lock)$' cfiles="$TOOLS/cargo-files.z" hman="$TOOLS/cargo-head-man.txt"
+  { git ls-tree -r -z --name-only "$base" 2>/dev/null || [ "$base" = "$EMPTY_TREE" ] || { echo "git ls-tree base failed (fail closed)"; exit 2; }
+    git ls-tree -r -z --name-only "$HEAD_SHA" || { echo "git ls-tree head failed (fail closed)"; exit 2; }
+    cat "$alln"; } > "$TOOLS/cargo-all.z"
+  grep -azE "$cargo_re" "$TOOLS/cargo-all.z" > "$cfiles" || true
+  if [ -s "$cfiles" ] && grep -azqE '(^|/)(Cargo\.(toml|lock)|deny\.toml)$' "$changed"; then
+    git ls-tree -r -z --name-only "$HEAD_SHA" | grep -azE '(^|/)Cargo\.toml$' | tr '\0' '\n' | sed -E 's#(^|/)Cargo\.toml$##; s#^$#.#' | sort -u > "$hman" || true
+    local f d drc
+    # A changed Cargo.lock that still exists in the head but has no Cargo.toml in its directory cannot be checked: fail closed.
+    while IFS= read -r -d '' f; do
+      case "$f" in *Cargo.lock) ;; *) continue ;; esac
+      git cat-file -e "${HEAD_SHA}:${f}" 2>/dev/null || continue
+      d="$(dirname "$f")"
+      grep -qxF "$d" "$hman" || { echo "Cargo.lock $f has no Cargo.toml in its directory (fail closed)"; exit 2; }
+    done < "$changed"
+    if [ ! -s "$hman" ]; then echo "Rust manifests only in base/removed; no head manifest to check"; fi
+    while IFS= read -r d; do
+      [ -n "$d" ] || continue
+      echo "cargo-deny: manifest dir $d"
+      drc=0; deny_diff "$base" "$d" || drc=$?
+      [ "$drc" -le "$rc" ] || rc=$drc   # keep the worst code; never let a later pass mask an earlier error
+    done < "$hman"
   fi
   exit $rc
 }
@@ -199,8 +218,8 @@ PY
   rm -f "$raw"
 }
 
-deny_diff() {
-  local base="$1" w new
+deny_diff() { # base manifest-dir (relative to repo root)
+  local base="$1" dir="${2:-.}" w new
   w="$(mktemp -d "$TOOLS/deny-diff.XXXXXX")"
   fetch "https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}/cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz" "$DENY_SHA256" "$TOOLS/cd.tgz"
   tar -xzf "$TOOLS/cd.tgz" -C "$TOOLS" --strip-components=1 "cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny"
@@ -233,8 +252,8 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = []
 TOML
   fi
-  deny_findings "$PWD" "$w/h.txt" || { echo "cargo-deny failed on head (fail closed)"; rm -rf "$w"; return 2; }
-  if git worktree add --detach "$w/base" "$base" >/dev/null 2>&1 && deny_findings "$w/base" "$w/b.txt"; then :; else echo "base not scannable; empty baseline"; : > "$w/b.txt"; fi
+  deny_findings "$PWD/$dir" "$w/h.txt" || { echo "cargo-deny failed on head in $dir (fail closed)"; rm -rf "$w"; return 2; }
+  if git worktree add --detach "$w/base" "$base" >/dev/null 2>&1 && [ -f "$w/base/$dir/Cargo.toml" ] && deny_findings "$w/base/$dir" "$w/b.txt"; then :; else echo "base not scannable; empty baseline"; : > "$w/b.txt"; fi
   git worktree remove --force "$w/base" >/dev/null 2>&1 || true
   new="$(comm -13 "$w/b.txt" "$w/h.txt")" || { echo "comm failed (fail closed)"; rm -rf "$w"; return 2; }
   local nh nb; nh=$(wc -l < "$w/h.txt"); nb=$(wc -l < "$w/b.txt")
