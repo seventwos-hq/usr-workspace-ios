@@ -139,18 +139,21 @@ osv_diff() {
 }
 
 deny_findings() { # dir out ; returns 2 when cargo-deny did not complete (no summary = operational failure)
-  local d="$1" out="$2" raw
+  local d="$1" out="$2" raw drc=0
   raw="$(mktemp "$TOOLS/deny.XXXXXX")"
   # cargo-deny exits non-zero when it reports errors; completion is judged by the JSON summary below
-  (cd "$d" && "$TOOLS/cargo-deny" --format json check advisories bans sources) > /dev/null 2> "$raw" || true
-  python3 - "$raw" > "$out" <<'PY' || return 2
+  (cd "$d" && "$TOOLS/cargo-deny" --format json check advisories bans sources) > /dev/null 2> "$raw" || drc=$?
+  case "$drc" in 0|1) ;; *) echo "cargo-deny failed (exit $drc):"; tail -n 20 "$raw"; rm -f "$raw"; return 2 ;; esac
+  python3 - "$raw" "$drc" > "$out" <<'PY' || { echo "cargo-deny did not complete cleanly (exit $drc):"; tail -n 20 "$raw"; rm -f "$raw"; return 2; }
 import sys,json
-summary=False
+summary=False; nerr=0; bad=False
 for l in open(sys.argv[1]):
     try: d=json.loads(l)
     except Exception: continue
     if d.get("type")=="summary": summary=True
     f=d.get("fields",{})
+    if d.get("type")!="diagnostic" and str(d.get("level","")).upper()=="ERROR":
+        sys.stderr.write("cargo-deny logged an error: "+str(f.get("message",""))+"\n"); bad=True
     if d.get("type")=="diagnostic" and f.get("severity")=="error":
         ks=set()
         def walk(o):
@@ -163,9 +166,12 @@ for l in open(sys.argv[1]):
         walk(f.get("graphs"))
         adv=(f.get("advisory") or {}).get("id","")
         pk=",".join(sorted(ks)) or "?"
+        nerr+=1
         print("|".join([f.get("code","?"),pk,adv,f.get("message","?")]))
 if not summary:
     sys.stderr.write("cargo-deny produced no summary (did not complete)\n"); sys.exit(2)
+if bad or (sys.argv[2]=="1" and nerr==0):
+    sys.stderr.write("cargo-deny failed without reporting error diagnostics\n"); sys.exit(2)
 PY
   sort -u -o "$out" "$out" || return 2
   rm -f "$raw"
