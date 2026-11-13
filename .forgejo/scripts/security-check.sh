@@ -20,6 +20,17 @@ fetch() { # url sha256 out
   echo "$2  $3" | sha256sum -c - >/dev/null || { echo "checksum mismatch for $1"; exit 2; }
 }
 
+EMPTY_TREE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+
+# True when the old tip is unusable and nothing but the default branch itself holds the new commits:
+# then scan the reachable history instead of excluding the default branch (which would exclude everything).
+unusable_default_push() {
+  [ "$EVENT" = "pull_request" ] && return 1
+  [ "${REF_NAME:-}" = "${DEFAULT_BRANCH:-main}" ] || return 1
+  [ -n "${BASE_SHA:-}" ] && [ "$BASE_SHA" != "$ZERO" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null && return 1
+  return 0
+}
+
 # Range of commits this run is responsible for, as git-log arguments.
 range_args() {
   local def="origin/${DEFAULT_BRANCH:-main}"
@@ -27,17 +38,20 @@ range_args() {
     echo "${BASE_SHA}..${HEAD_SHA}"
   elif [ -n "${BASE_SHA:-}" ] && [ "$BASE_SHA" != "$ZERO" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
     echo "${BASE_SHA}..${HEAD_SHA}"
+  elif unusable_default_push; then
+    echo "${HEAD_SHA}"
   else
     echo "${HEAD_SHA} --not ${def}"
   fi
 }
 
-# Base commit to diff the head against (for dependency checks).
+# Base to diff the head against (for dependency checks).
 base_commit() {
   local def="origin/${DEFAULT_BRANCH:-main}"
   if [ "$EVENT" = "pull_request" ]; then echo "$BASE_SHA"
   elif [ -n "${BASE_SHA:-}" ] && [ "$BASE_SHA" != "$ZERO" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then echo "$BASE_SHA"
-  else git merge-base "$HEAD_SHA" "$def" 2>/dev/null || true; fi
+  elif unusable_default_push; then echo "$EMPTY_TREE"
+  else git merge-base "$HEAD_SHA" "$def" 2>/dev/null || echo "$EMPTY_TREE"; fi
 }
 
 run_gitleaks() {
@@ -55,7 +69,6 @@ LOCK_RE='(^|/)(Cargo\.lock|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|Package
 
 run_deps() {
   local base; base="$(base_commit)"
-  if [ -z "$base" ]; then echo "no base commit found; scanning nothing"; exit 0; fi
   local changed; changed="$(git diff --name-only "$base" "$HEAD_SHA" | grep -E "$LOCK_RE" || true)"
   if [ -z "$changed" ]; then echo "no lockfile or deny.toml changed; skipping"; exit 0; fi
   echo "changed dependency files:"; echo "$changed"
@@ -65,17 +78,24 @@ run_deps() {
   if [ -n "$lockfiles" ]; then
     fetch "https://github.com/google/osv-scanner/releases/download/v${OSV_VERSION}/osv-scanner_linux_amd64" "$OSV_SHA256" "$TOOLS/osv-scanner"
     chmod +x "$TOOLS/osv-scanner"
-    osv_diff "$base" "$lockfiles" || rc=1
+    osv_diff "$base" "$lockfiles" || rc=$?
   fi
   if echo "$changed" | grep -qE '(^|/)(Cargo\.lock|deny\.toml)$' && [ -f deny.toml ]; then
-    deny_diff "$base" || rc=1
+    deny_diff "$base" || rc=$?
   fi
   exit $rc
 }
 
-osv_scan() { # dir lockfile-relpath out.json
-  (cd "$1" && "$TOOLS/osv-scanner" scan source --format json -L "$2" > "$3" 2>/dev/null) || true
-  [ -s "$3" ] || echo '{"results":[]}' > "$3"
+osv_scan() { # dir lockfile-relpath out.json ; fails closed on operational errors
+  local rc=0
+  (cd "$1" && "$TOOLS/osv-scanner" scan source --format json -L "$2" > "$3") 2>"$3.err" || rc=$?
+  case "$rc" in
+    0|1) ;;                                   # 0 clean, 1 vulnerabilities found
+    128) echo '{"results":[]}' > "$3"; echo "warning: osv-scanner found no packages in $2" ;;
+    *) echo "osv-scanner failed (exit $rc) on $2:"; cat "$3.err"; return 2 ;;
+  esac
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert isinstance(d.get("results"),list)' "$3" \
+    || { echo "osv-scanner produced invalid JSON for $2"; return 2; }
 }
 
 osv_ids() { # json -> "lockfile|pkg|id" lines
@@ -92,46 +112,59 @@ PY
 }
 
 osv_diff() {
-  local base="$1" files="$2" w; w="$(mktemp -d)"
-  local bad=0 f
+  local base="$1" files="$2" w bad=0 f new
+  w="$(mktemp -d "$TOOLS/osv.XXXXXX")"
   while IFS= read -r f; do
     [ -f "$f" ] || continue   # lockfile deleted
     mkdir -p "$w/head/$(dirname "$f")" "$w/base/$(dirname "$f")"
     cp "$f" "$w/head/$f"
     git show "${base}:${f}" > "$w/base/$f" 2>/dev/null || rm -f "$w/base/$f"
-    osv_scan "$w/head" "$f" "$w/h.json"
-    if [ -f "$w/base/$f" ]; then osv_scan "$w/base" "$f" "$w/b.json"; else echo '{"results":[]}' > "$w/b.json"; fi
-    osv_ids "$w/h.json" | sort -u > "$w/h.txt"; osv_ids "$w/b.json" | sort -u > "$w/b.txt"
-    local new; new="$(comm -13 "$w/b.txt" "$w/h.txt" || true)"
+    osv_scan "$w/head" "$f" "$w/h.json" || { rm -rf "$w"; return 2; }
+    if [ -f "$w/base/$f" ]; then osv_scan "$w/base" "$f" "$w/b.json" || { rm -rf "$w"; return 2; }; else echo '{"results":[]}' > "$w/b.json"; fi
+    osv_ids "$w/h.json" | sort -u > "$w/h.txt" || { rm -rf "$w"; return 2; }
+    osv_ids "$w/b.json" | sort -u > "$w/b.txt" || { rm -rf "$w"; return 2; }
+    new="$(comm -13 "$w/b.txt" "$w/h.txt" || true)"
     if [ -n "$new" ]; then echo "NEW vulnerabilities introduced in $f:"; echo "$new"; bad=1
     else echo "osv-scanner: no new advisories in $f (head $(wc -l < "$w/h.txt"), base $(wc -l < "$w/b.txt"))"; fi
   done <<< "$files"
+  rm -rf "$w"
   return $bad
 }
 
-deny_findings() { # dir -> fingerprint lines
-  (cd "$1" && "$TOOLS/cargo-deny" --format json check advisories bans sources 2>&1 >/dev/null || true) | python3 -c '
+deny_findings() { # dir out ; returns 2 when cargo-deny did not complete (no summary = operational failure)
+  local d="$1" out="$2" raw
+  raw="$(mktemp "$TOOLS/deny.XXXXXX")"
+  (cd "$d" && "$TOOLS/cargo-deny" --format json check advisories bans sources) > /dev/null 2> "$raw" || true
+  python3 - "$raw" > "$out" <<'PY' || return 2
 import sys,json
-for l in sys.stdin:
+summary=False
+for l in open(sys.argv[1]):
     try: d=json.loads(l)
     except Exception: continue
+    if d.get("type")=="summary": summary=True
     f=d.get("fields",{})
     if d.get("type")=="diagnostic" and f.get("severity")=="error":
         print(f.get("code","?")+"|"+f.get("message","?"))
-' | sort -u
+if not summary:
+    sys.stderr.write("cargo-deny produced no summary (did not complete)\n"); sys.exit(2)
+PY
+  sort -u -o "$out" "$out"
+  rm -f "$raw"
 }
 
 deny_diff() {
-  local base="$1" w; w="$(mktemp -d)"
+  local base="$1" w new
+  w="$(mktemp -d "$TOOLS/deny-diff.XXXXXX")"
   fetch "https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}/cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz" "$DENY_SHA256" "$TOOLS/cd.tgz"
   tar -xzf "$TOOLS/cd.tgz" -C "$TOOLS" --strip-components=1 "cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny"
-  git worktree add --detach "$w/base" "$base" >/dev/null
-  deny_findings "$PWD" > "$w/h.txt"
-  deny_findings "$w/base" > "$w/b.txt"
-  git worktree remove --force "$w/base" || true
-  local new; new="$(comm -13 "$w/b.txt" "$w/h.txt" || true)"
+  deny_findings "$PWD" "$w/h.txt" || { echo "cargo-deny failed on head (fail closed)"; rm -rf "$w"; return 2; }
+  if git worktree add --detach "$w/base" "$base" >/dev/null 2>&1 && deny_findings "$w/base" "$w/b.txt"; then :; else echo "base not scannable; empty baseline"; : > "$w/b.txt"; fi
+  git worktree remove --force "$w/base" >/dev/null 2>&1 || true
+  new="$(comm -13 "$w/b.txt" "$w/h.txt" || true)"
+  local nh nb; nh=$(wc -l < "$w/h.txt"); nb=$(wc -l < "$w/b.txt")
+  rm -rf "$w"
   if [ -n "$new" ]; then echo "NEW cargo-deny errors:"; echo "$new"; return 1; fi
-  echo "cargo-deny: no new errors (head $(wc -l < "$w/h.txt"), base $(wc -l < "$w/b.txt"))"
+  echo "cargo-deny: no new errors (head $nh, base $nb)"
 }
 
 case "${1:-}" in
