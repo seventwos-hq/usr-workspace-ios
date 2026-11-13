@@ -33,7 +33,7 @@ unusable_default_push() {
 
 # Range of commits this run is responsible for, as git-log arguments.
 range_args() {
-  local def="origin/${DEFAULT_BRANCH:-main}"
+  local def="refs/remotes/origin/${DEFAULT_BRANCH:-main}"
   if [ "$EVENT" = "pull_request" ]; then
     echo "${BASE_SHA}..${HEAD_SHA}"
   elif [ -n "${BASE_SHA:-}" ] && [ "$BASE_SHA" != "$ZERO" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
@@ -47,7 +47,7 @@ range_args() {
 
 # Base to diff the head against (for dependency checks).
 base_commit() {
-  local def="origin/${DEFAULT_BRANCH:-main}"
+  local def="refs/remotes/origin/${DEFAULT_BRANCH:-main}"
   if [ "$EVENT" = "pull_request" ]; then echo "$BASE_SHA"
   elif [ -n "${BASE_SHA:-}" ] && [ "$BASE_SHA" != "$ZERO" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then echo "$BASE_SHA"
   elif unusable_default_push; then echo "$EMPTY_TREE"
@@ -92,10 +92,10 @@ run_deps() {
   # NUL-delimited throughout: paths with non-ASCII/control/newline characters are neither quoted nor split.
   local alln="$TOOLS/diff-all.z" changed="$TOOLS/diff-deps.z" lockfiles="$TOOLS/diff-locks.z"
   git diff --name-only -z "$base" "$HEAD_SHA" > "$alln" || { echo "git diff failed (fail closed)"; exit 2; }
-  grep -zE "$LOCK_RE" "$alln" > "$changed" || true
+  grep -azE "$LOCK_RE" "$alln" > "$changed" || true
   if [ ! -s "$changed" ]; then echo "no lockfile or deny.toml changed; skipping"; exit 0; fi
   echo "changed dependency files:"; tr '\0' '\n' < "$changed"
-  grep -zvE 'deny\.toml$' "$changed" > "$lockfiles" || true
+  grep -azvE '(^|/)deny\.toml$' "$changed" > "$lockfiles" || true
   local rc=0
   if [ -s "$lockfiles" ]; then
     fetch "https://github.com/google/osv-scanner/releases/download/v${OSV_VERSION}/osv-scanner_linux_amd64" "$OSV_SHA256" "$TOOLS/osv-scanner"
@@ -103,7 +103,9 @@ run_deps() {
     osv_diff "$base" "$lockfiles" || rc=$?
     [ "$rc" -le 1 ] || { echo "osv-scanner stage failed (exit $rc)"; exit "$rc"; }
   fi
-  if grep -zqE '(^|/)(Cargo\.lock|deny\.toml)$' "$changed" && [ -f deny.toml ]; then
+  # Decided by the head having a Cargo manifest, never by the proposed deny.toml existing: deleting the policy file
+  # must not skip enforcement (the trusted or built-in policy is applied regardless).
+  if grep -azqE '(^|/)(Cargo\.lock|deny\.toml)$' "$changed" && [ -f Cargo.toml ]; then
     local drc=0
     deny_diff "$base" || drc=$?
     [ "$drc" -le "$rc" ] || rc=$drc   # keep the worst code; never let a later pass mask an earlier error
@@ -124,16 +126,16 @@ osv_scan() { # dir lockfile-relpath out.json [strict] ; strict (head): no-packag
     || { echo "osv-scanner produced invalid JSON for $2"; return 2; }
 }
 
-osv_ids() { # json -> "lockfile|pkg|id" lines
+osv_ids() { # json -> "lockfile|ecosystem|pkg@version|id" lines
   python3 - "$1" <<'PY'
 import json,sys
 d=json.load(open(sys.argv[1]))
 for r in d.get("results") or []:
     src=r["source"]["path"].split("/")[-1]
     for p in r.get("packages") or []:
-        n=p["package"]["name"]
+        pk=p["package"]; n=pk["name"]; ver=pk.get("version") or "?"; eco=pk.get("ecosystem") or "?"
         for v in p.get("vulnerabilities") or []:
-            print(f"{src}|{n}|{v['id']}")
+            print(f"{src}|{eco}|{n}@{ver}|{v['id']}")
 PY
 }
 
@@ -161,8 +163,8 @@ osv_diff() {
 deny_findings() { # dir out ; returns 2 when cargo-deny did not complete (no summary = operational failure)
   local d="$1" out="$2" raw drc=0
   raw="$(mktemp "$TOOLS/deny.XXXXXX")"
-  # cargo-deny exits non-zero when it reports errors; completion is judged by the JSON summary below
-  (cd "$d" && "$TOOLS/cargo-deny" --format json check --config "$DENY_CFG" $DENY_CHECKS) > /dev/null 2> "$raw" || drc=$?
+  # --config is a top-level flag (before `check`) in cargo-deny 0.20. cargo-deny exits non-zero when it reports errors; completion is judged by the JSON summary below
+  (cd "$d" && "$TOOLS/cargo-deny" --format json --config "$DENY_CFG" check $DENY_CHECKS) > /dev/null 2> "$raw" || drc=$?
   case "$drc" in 0|1) ;; *) echo "cargo-deny failed (exit $drc):"; tail -n 20 "$raw"; rm -f "$raw"; return 2 ;; esac
   python3 - "$raw" "$drc" > "$out" <<'PY' || { echo "cargo-deny did not complete cleanly (exit $drc):"; tail -n 20 "$raw"; rm -f "$raw"; return 2; }
 import sys,json
@@ -179,7 +181,7 @@ for l in open(sys.argv[1]):
         def walk(o):
             if isinstance(o,dict):
                 k=o.get("Krate")
-                if isinstance(k,dict) and "name" in k: ks.add(k["name"]+"@"+str(k.get("version","?")))
+                if isinstance(k,dict) and "name" in k: ks.add(k["name"]+"@"+str(k.get("version","?"))+"#"+str(k.get("source") or "local"))
                 for v in o.values(): walk(v)
             elif isinstance(o,list):
                 for v in o: walk(v)
@@ -203,13 +205,33 @@ deny_diff() {
   fetch "https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}/cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz" "$DENY_SHA256" "$TOOLS/cd.tgz"
   tar -xzf "$TOOLS/cd.tgz" -C "$TOOLS" --strip-components=1 "cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny"
   # Policy (ignores, bans, sources) comes from the trusted ref, never from the proposed tree: the PR's own deny.toml
-  # is never used. When the trusted ref has no deny.toml, run advisories only with an empty (built-in defaults) config.
+  # is never read. Lookup errors fail closed. When the trusted ref genuinely has no deny.toml (bootstrap), a fixed
+  # built-in restrictive policy is used (crates.io only, no git sources, no wildcards, no advisory ignores).
+  local tref; tref="$(trusted_ref)"
   DENY_CFG="$TOOLS/deny-trusted.toml"; DENY_CHECKS="advisories bans sources"
-  if ! git show "$(trusted_ref):deny.toml" > "$DENY_CFG" 2>/dev/null || [ ! -s "$DENY_CFG" ]; then
-    echo "warning: no trusted deny.toml on $(trusted_ref); running advisories only with default config (bans/sources skipped)"
-    : > "$DENY_CFG"; DENY_CHECKS="advisories"
-  elif ! cmp -s "$DENY_CFG" deny.toml; then
-    echo "note: proposed deny.toml differs from trusted policy; scanning with the trusted policy"
+  git rev-parse -q --verify "${tref}^{tree}" >/dev/null || { echo "trusted ref $tref not resolvable (fail closed)"; rm -rf "$w"; return 2; }
+  if git cat-file -e "${tref}:deny.toml" 2>/dev/null; then
+    git show "${tref}:deny.toml" > "$DENY_CFG" || { echo "cannot read trusted deny.toml from $tref (fail closed)"; rm -rf "$w"; return 2; }
+    [ -s "$DENY_CFG" ] || { echo "trusted deny.toml on $tref is empty (fail closed)"; rm -rf "$w"; return 2; }
+    if [ ! -f deny.toml ] || ! cmp -s "$DENY_CFG" deny.toml; then
+      echo "note: proposed deny.toml differs from (or deletes) the trusted policy; scanning with the trusted policy"
+    fi
+  else
+    echo "no deny.toml on $tref (bootstrap); using the built-in restrictive policy, proposed deny.toml ignored"
+    cat > "$DENY_CFG" <<'TOML'
+[advisories]
+yanked = "deny"
+ignore = []
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+TOML
   fi
   deny_findings "$PWD" "$w/h.txt" || { echo "cargo-deny failed on head (fail closed)"; rm -rf "$w"; return 2; }
   if git worktree add --detach "$w/base" "$base" >/dev/null 2>&1 && deny_findings "$w/base" "$w/b.txt"; then :; else echo "base not scannable; empty baseline"; : > "$w/b.txt"; fi
