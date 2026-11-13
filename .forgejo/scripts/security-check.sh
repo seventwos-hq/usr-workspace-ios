@@ -54,6 +54,15 @@ base_commit() {
   else git merge-base "$HEAD_SHA" "$def" 2>/dev/null || echo "$EMPTY_TREE"; fi
 }
 
+# Trusted policy ref: pre-push tip ONLY for a push to the default branch (protected); every other event/branch uses the
+# fully qualified default-branch ref (a feature-branch "before" tip or a PR base can be attacker-controlled).
+# On a default-branch push with no usable pre-push tip, the empty tree (built-in rules, no ignores).
+trusted_ref() {
+  if [ "$EVENT" != "pull_request" ] && [ "${REF_NAME:-}" = "${DEFAULT_BRANCH:-main}" ]; then
+    if [ -n "${BASE_SHA:-}" ] && [ "$BASE_SHA" != "$ZERO" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then echo "$BASE_SHA"; else echo "$EMPTY_TREE"; fi
+  else echo "refs/remotes/origin/${DEFAULT_BRANCH:-main}"; fi
+}
+
 run_gitleaks() {
   fetch "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" "$GITLEAKS_SHA256" "$TOOLS/gl.tgz"
   tar -xzf "$TOOLS/gl.tgz" -C "$TOOLS" gitleaks
@@ -64,10 +73,7 @@ run_gitleaks() {
   # Trusted ref: pre-push tip ONLY for a push to the default branch (protected); every other event/branch uses the
   # default-branch tip (a feature-branch "before" tip is attacker-controlled). On a default-branch push with no usable
   # pre-push tip, fall back to built-in rules with no ignores (empty tree).
-  local base cfgf ign
-  if [ "$EVENT" != "pull_request" ] && [ "${REF_NAME:-}" = "${DEFAULT_BRANCH:-main}" ]; then
-    if [ -n "${BASE_SHA:-}" ] && [ "$BASE_SHA" != "$ZERO" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then base="$BASE_SHA"; else base="$EMPTY_TREE"; fi
-  else base="refs/remotes/origin/${DEFAULT_BRANCH:-main}"; fi
+  local base cfgf ign; base="$(trusted_ref)"
   cfgf="$TOOLS/gitleaks-trusted.toml"; ign="$TOOLS/gitleaksignore-trusted"
   if ! git show "${base}:.gitleaks.toml" > "$cfgf" 2>/dev/null; then
     printf '[extend]\nuseDefault = true\n' > "$cfgf"
@@ -83,21 +89,21 @@ LOCK_RE='(^|/)(Cargo\.lock|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|Package
 
 run_deps() {
   local base; base="$(base_commit)"
-  local alln changed
-  alln="$(git diff --name-only "$base" "$HEAD_SHA")" || { echo "git diff failed (fail closed)"; exit 2; }
-  changed="$(printf '%s\n' "$alln" | grep -E "$LOCK_RE" || true)"
-  if [ -z "$changed" ]; then echo "no lockfile or deny.toml changed; skipping"; exit 0; fi
-  echo "changed dependency files:"; echo "$changed"
-
-  local lockfiles; lockfiles="$(echo "$changed" | grep -v 'deny\.toml$' || true)"
+  # NUL-delimited throughout: paths with non-ASCII/control/newline characters are neither quoted nor split.
+  local alln="$TOOLS/diff-all.z" changed="$TOOLS/diff-deps.z" lockfiles="$TOOLS/diff-locks.z"
+  git diff --name-only -z "$base" "$HEAD_SHA" > "$alln" || { echo "git diff failed (fail closed)"; exit 2; }
+  grep -zE "$LOCK_RE" "$alln" > "$changed" || true
+  if [ ! -s "$changed" ]; then echo "no lockfile or deny.toml changed; skipping"; exit 0; fi
+  echo "changed dependency files:"; tr '\0' '\n' < "$changed"
+  grep -zvE 'deny\.toml$' "$changed" > "$lockfiles" || true
   local rc=0
-  if [ -n "$lockfiles" ]; then
+  if [ -s "$lockfiles" ]; then
     fetch "https://github.com/google/osv-scanner/releases/download/v${OSV_VERSION}/osv-scanner_linux_amd64" "$OSV_SHA256" "$TOOLS/osv-scanner"
     chmod +x "$TOOLS/osv-scanner"
     osv_diff "$base" "$lockfiles" || rc=$?
     [ "$rc" -le 1 ] || { echo "osv-scanner stage failed (exit $rc)"; exit "$rc"; }
   fi
-  if echo "$changed" | grep -qE '(^|/)(Cargo\.lock|deny\.toml)$' && [ -f deny.toml ]; then
+  if grep -zqE '(^|/)(Cargo\.lock|deny\.toml)$' "$changed" && [ -f deny.toml ]; then
     local drc=0
     deny_diff "$base" || drc=$?
     [ "$drc" -le "$rc" ] || rc=$drc   # keep the worst code; never let a later pass mask an earlier error
@@ -105,12 +111,12 @@ run_deps() {
   exit $rc
 }
 
-osv_scan() { # dir lockfile-relpath out.json ; fails closed on operational errors
+osv_scan() { # dir lockfile-relpath out.json [strict] ; strict (head): no-packages is a failure, not an empty scan; fails closed on operational errors
   local rc=0
   (cd "$1" && "$TOOLS/osv-scanner" scan source --format json -L "$2" > "$3") 2>"$3.err" || rc=$?
   case "$rc" in
     0|1) ;;                                   # 0 clean, 1 vulnerabilities found
-    128) if grep -qi 'no package sources found' "$3.err"; then echo '{"results":[]}' > "$3"; echo "warning: osv-scanner found no packages in $2"
+    128) if [ "${4:-}" != strict ] && grep -qi 'no package sources found' "$3.err"; then echo '{"results":[]}' > "$3"; echo "warning: osv-scanner found no packages in $2"
          else echo "osv-scanner failed (exit 128) on $2:"; cat "$3.err"; return 2; fi ;;
     *) echo "osv-scanner failed (exit $rc) on $2:"; cat "$3.err"; return 2 ;;
   esac
@@ -134,12 +140,12 @@ PY
 osv_diff() {
   local base="$1" files="$2" w bad=0 f new
   w="$(mktemp -d "$TOOLS/osv.XXXXXX")"
-  while IFS= read -r f; do
+  while IFS= read -r -d '' f; do
     [ -f "$f" ] || continue   # lockfile deleted
     mkdir -p "$w/head/$(dirname "$f")" "$w/base/$(dirname "$f")"
     cp "$f" "$w/head/$f"
     git show "${base}:${f}" > "$w/base/$f" 2>/dev/null || rm -f "$w/base/$f"
-    osv_scan "$w/head" "$f" "$w/h.json" || { rm -rf "$w"; return 2; }
+    osv_scan "$w/head" "$f" "$w/h.json" strict || { rm -rf "$w"; return 2; }
     if [ -s "$w/base/$f" ]; then osv_scan "$w/base" "$f" "$w/b.json" || { rm -rf "$w"; return 2; }; else echo '{"results":[]}' > "$w/b.json"; fi
     osv_ids "$w/h.json" > "$w/h.raw" || { echo "failed to parse osv-scanner output for $f"; rm -rf "$w"; return 2; }
     osv_ids "$w/b.json" > "$w/b.raw" || { echo "failed to parse osv-scanner baseline output for $f"; rm -rf "$w"; return 2; }
@@ -147,7 +153,7 @@ osv_diff() {
     new="$(comm -13 "$w/b.txt" "$w/h.txt")" || { echo "comm failed"; rm -rf "$w"; return 2; }
     if [ -n "$new" ]; then echo "NEW vulnerabilities introduced in $f:"; echo "$new"; bad=1
     else echo "osv-scanner: no new advisories in $f (head $(wc -l < "$w/h.txt"), base $(wc -l < "$w/b.txt"))"; fi
-  done <<< "$files"
+  done < "$files"
   rm -rf "$w"
   return $bad
 }
@@ -156,7 +162,7 @@ deny_findings() { # dir out ; returns 2 when cargo-deny did not complete (no sum
   local d="$1" out="$2" raw drc=0
   raw="$(mktemp "$TOOLS/deny.XXXXXX")"
   # cargo-deny exits non-zero when it reports errors; completion is judged by the JSON summary below
-  (cd "$d" && "$TOOLS/cargo-deny" --format json check advisories bans sources) > /dev/null 2> "$raw" || drc=$?
+  (cd "$d" && "$TOOLS/cargo-deny" --format json check --config "$DENY_CFG" advisories bans sources) > /dev/null 2> "$raw" || drc=$?
   case "$drc" in 0|1) ;; *) echo "cargo-deny failed (exit $drc):"; tail -n 20 "$raw"; rm -f "$raw"; return 2 ;; esac
   python3 - "$raw" "$drc" > "$out" <<'PY' || { echo "cargo-deny did not complete cleanly (exit $drc):"; tail -n 20 "$raw"; rm -f "$raw"; return 2; }
 import sys,json
@@ -196,6 +202,15 @@ deny_diff() {
   w="$(mktemp -d "$TOOLS/deny-diff.XXXXXX")"
   fetch "https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}/cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz" "$DENY_SHA256" "$TOOLS/cd.tgz"
   tar -xzf "$TOOLS/cd.tgz" -C "$TOOLS" --strip-components=1 "cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny"
+  # Policy (ignores, bans, sources) comes from the trusted ref, never from the proposed tree. Bootstrap: when the trusted
+  # ref has no deny.toml yet, fall back to the proposed one (and say so).
+  DENY_CFG="$TOOLS/deny-trusted.toml"
+  if ! git show "$(trusted_ref):deny.toml" > "$DENY_CFG" 2>/dev/null || [ ! -s "$DENY_CFG" ]; then
+    echo "warning: no trusted deny.toml on $(trusted_ref); using the proposed deny.toml (review policy changes manually)"
+    cp deny.toml "$DENY_CFG"
+  elif ! cmp -s "$DENY_CFG" deny.toml; then
+    echo "note: proposed deny.toml differs from trusted policy; scanning with the trusted policy"
+  fi
   deny_findings "$PWD" "$w/h.txt" || { echo "cargo-deny failed on head (fail closed)"; rm -rf "$w"; return 2; }
   if git worktree add --detach "$w/base" "$base" >/dev/null 2>&1 && deny_findings "$w/base" "$w/b.txt"; then :; else echo "base not scannable; empty baseline"; : > "$w/b.txt"; fi
   git worktree remove --force "$w/base" >/dev/null 2>&1 || true
