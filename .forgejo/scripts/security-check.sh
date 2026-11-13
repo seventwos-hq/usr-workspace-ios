@@ -11,8 +11,9 @@ OSV_SHA256=c799274b682e0437c802d4714a136ad09b39c65547c460049ba5358d28afa576
 DENY_VERSION=0.20.2
 DENY_SHA256=9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f
 
-TOOLS="${RUNNER_TEMP:-/tmp}/sec-tools"
-mkdir -p "$TOOLS"
+# Fresh private per-run tools dir: a pre-existing/planted executable is never trusted; every binary is downloaded and checksum-verified in this run.
+TOOLS="$(mktemp -d "${RUNNER_TEMP:-/tmp}/sec-tools.XXXXXX")"
+trap 'rm -rf "$TOOLS"' EXIT
 ZERO=0000000000000000000000000000000000000000
 
 fetch() { # url sha256 out
@@ -262,9 +263,11 @@ allow-git = []
 TOML
   fi
   local hok=1 bexists=0 bok=0
-  deny_findings "$PWD/$dir" "$w/h.txt" || hok=0
+  deny_findings "$PWD/$dir" "$w/h.txt" > "$w/h.log" 2>&1 || hok=0
+  cat "$w/h.log"
   if git worktree add --detach "$w/base" "$base" >/dev/null 2>&1 && [ -f "$w/base/$dir/Cargo.toml" ]; then
-    bexists=1; deny_findings "$w/base/$dir" "$w/b.txt" && bok=1
+    bexists=1; deny_findings "$w/base/$dir" "$w/b.txt" > "$w/b.log" 2>&1 && bok=1
+    cat "$w/b.log"
   fi
   [ "$bok" = 1 ] || { echo "base not scannable; empty baseline"; : > "$w/b.txt"; }
   git worktree remove --force "$w/base" >/dev/null 2>&1 || true
@@ -272,10 +275,13 @@ TOML
     # A nested project that already existed in the base and was ALREADY unscannable there (e.g. a fuzz crate that is
     # neither a workspace member nor excluded) cannot regress; skip it with a warning. Root, new, or previously
     # scannable projects that now fail still fail closed.
-    if [ "$dir" != "." ] && [ "$bexists" = 1 ] && [ "$bok" = 0 ]; then
+    # Exemption is limited to the one documented structural failure (cargo "believes it's in a workspace when it's not")
+    # seen in BOTH scans; any other operational failure (network, advisory db, parse, config) fails closed.
+    local ws_re="believes it's in a workspace when it's not"
+    if [ "$dir" != "." ] && [ "$bexists" = 1 ] && [ "$bok" = 0 ] && grep -qF -- "$ws_re" "$w/h.log" && grep -qF -- "$ws_re" "$w/b.log"; then
       # Only safe if nothing under the project changed between the trusted baseline and the head; else fail closed.
       local chg
-      chg="$(git diff --name-only "$base...$HEAD_SHA" -- "$dir")" || { echo "git diff failed for $dir (fail closed)"; rm -rf "$w"; return 2; }
+      chg="$(git diff --name-only "$base" "$HEAD_SHA" -- "$dir")" || { echo "git diff failed for $dir (fail closed)"; rm -rf "$w"; return 2; }
       if [ -n "$chg" ]; then
         echo "cargo-deny cannot scan $dir (unscannable in base and head) and files under it changed in this change (fail closed):"; echo "$chg"
         rm -rf "$w"; return 2
