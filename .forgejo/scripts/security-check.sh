@@ -162,7 +162,7 @@ deny_findings() { # dir out ; returns 2 when cargo-deny did not complete (no sum
   local d="$1" out="$2" raw drc=0
   raw="$(mktemp "$TOOLS/deny.XXXXXX")"
   # cargo-deny exits non-zero when it reports errors; completion is judged by the JSON summary below
-  (cd "$d" && "$TOOLS/cargo-deny" --format json check --config "$DENY_CFG" advisories bans sources) > /dev/null 2> "$raw" || drc=$?
+  (cd "$d" && "$TOOLS/cargo-deny" --format json check --config "$DENY_CFG" $DENY_CHECKS) > /dev/null 2> "$raw" || drc=$?
   case "$drc" in 0|1) ;; *) echo "cargo-deny failed (exit $drc):"; tail -n 20 "$raw"; rm -f "$raw"; return 2 ;; esac
   python3 - "$raw" "$drc" > "$out" <<'PY' || { echo "cargo-deny did not complete cleanly (exit $drc):"; tail -n 20 "$raw"; rm -f "$raw"; return 2; }
 import sys,json
@@ -202,12 +202,12 @@ deny_diff() {
   w="$(mktemp -d "$TOOLS/deny-diff.XXXXXX")"
   fetch "https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}/cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz" "$DENY_SHA256" "$TOOLS/cd.tgz"
   tar -xzf "$TOOLS/cd.tgz" -C "$TOOLS" --strip-components=1 "cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny"
-  # Policy (ignores, bans, sources) comes from the trusted ref, never from the proposed tree. Bootstrap: when the trusted
-  # ref has no deny.toml yet, fall back to the proposed one (and say so).
-  DENY_CFG="$TOOLS/deny-trusted.toml"
+  # Policy (ignores, bans, sources) comes from the trusted ref, never from the proposed tree: the PR's own deny.toml
+  # is never used. When the trusted ref has no deny.toml, run advisories only with an empty (built-in defaults) config.
+  DENY_CFG="$TOOLS/deny-trusted.toml"; DENY_CHECKS="advisories bans sources"
   if ! git show "$(trusted_ref):deny.toml" > "$DENY_CFG" 2>/dev/null || [ ! -s "$DENY_CFG" ]; then
-    echo "warning: no trusted deny.toml on $(trusted_ref); using the proposed deny.toml (review policy changes manually)"
-    cp deny.toml "$DENY_CFG"
+    echo "warning: no trusted deny.toml on $(trusted_ref); running advisories only with default config (bans/sources skipped)"
+    : > "$DENY_CFG"; DENY_CHECKS="advisories"
   elif ! cmp -s "$DENY_CFG" deny.toml; then
     echo "note: proposed deny.toml differs from trusted policy; scanning with the trusted policy"
   fi
