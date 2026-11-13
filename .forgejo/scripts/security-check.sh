@@ -111,6 +111,10 @@ run_deps() {
     git ls-tree -r -z --name-only "$HEAD_SHA" || { echo "git ls-tree head failed (fail closed)"; exit 2; }
     cat "$alln"; } > "$TOOLS/cargo-all.z"
   grep -azE "$cargo_re" "$TOOLS/cargo-all.z" > "$cfiles" || true
+  # Manifest dirs are derived through newline-delimited text below; a newline inside a Cargo path could make a crafted
+  # project resolve to a different (clean) directory. Refuse such paths outright instead of trying to escape them.
+  python3 -c 'import sys; sys.exit(1 if any(b"\n" in r for r in open(sys.argv[1],"rb").read().split(b"\0")) else 0)' "$cfiles" \
+    || { echo "Cargo manifest/lockfile path contains a newline (fail closed)"; exit 2; }
   if [ -s "$cfiles" ] && grep -azqE '(^|/)(Cargo\.(toml|lock)|deny\.toml)$' "$changed"; then
     git ls-tree -r -z --name-only "$HEAD_SHA" | grep -azE '(^|/)Cargo\.toml$' | tr '\0' '\n' | sed -E 's#(^|/)Cargo\.toml$##; s#^$#.#' | sort -u > "$hman" || true
     local f d drc
@@ -118,8 +122,8 @@ run_deps() {
     while IFS= read -r -d '' f; do
       case "$f" in *Cargo.lock) ;; *) continue ;; esac
       git cat-file -e "${HEAD_SHA}:${f}" 2>/dev/null || continue
-      d="$(dirname "$f")"
-      grep -qxF "$d" "$hman" || { echo "Cargo.lock $f has no Cargo.toml in its directory (fail closed)"; exit 2; }
+      d="$(dirname -- "$f")"
+      grep -qxF -- "$d" "$hman" || { echo "Cargo.lock $f has no Cargo.toml in its directory (fail closed)"; exit 2; }
     done < "$changed"
     if [ ! -s "$hman" ]; then echo "Rust manifests only in base/removed; no head manifest to check"; fi
     while IFS= read -r d; do
@@ -163,8 +167,8 @@ osv_diff() {
   w="$(mktemp -d "$TOOLS/osv.XXXXXX")"
   while IFS= read -r -d '' f; do
     [ -f "$f" ] || continue   # lockfile deleted
-    mkdir -p "$w/head/$(dirname "$f")" "$w/base/$(dirname "$f")"
-    cp "$f" "$w/head/$f"
+    mkdir -p -- "$w/head/$(dirname -- "$f")" "$w/base/$(dirname -- "$f")"
+    cp -- "$f" "$w/head/$f"
     git show "${base}:${f}" > "$w/base/$f" 2>/dev/null || rm -f "$w/base/$f"
     osv_scan "$w/head" "$f" "$w/h.json" strict || { rm -rf "$w"; return 2; }
     if [ -s "$w/base/$f" ]; then osv_scan "$w/base" "$f" "$w/b.json" || { rm -rf "$w"; return 2; }; else echo '{"results":[]}' > "$w/b.json"; fi
@@ -221,8 +225,10 @@ PY
 deny_diff() { # base manifest-dir (relative to repo root)
   local base="$1" dir="${2:-.}" w new
   w="$(mktemp -d "$TOOLS/deny-diff.XXXXXX")"
-  fetch "https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}/cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz" "$DENY_SHA256" "$TOOLS/cd.tgz"
-  tar -xzf "$TOOLS/cd.tgz" -C "$TOOLS" --strip-components=1 "cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny"
+  if [ ! -x "$TOOLS/cargo-deny" ]; then   # downloaded + checksum-verified once per run, reused for every manifest
+    fetch "https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}/cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz" "$DENY_SHA256" "$TOOLS/cd.tgz"
+    tar -xzf "$TOOLS/cd.tgz" -C "$TOOLS" --strip-components=1 "cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny"
+  fi
   # Policy (ignores, bans, sources) comes from the trusted ref, never from the proposed tree: the PR's own deny.toml
   # is never read. Lookup errors fail closed. When the trusted ref genuinely has no deny.toml (bootstrap), a fixed
   # built-in restrictive policy is used (crates.io only, no git sources, no wildcards, no advisory ignores).
@@ -252,9 +258,22 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = []
 TOML
   fi
-  deny_findings "$PWD/$dir" "$w/h.txt" || { echo "cargo-deny failed on head in $dir (fail closed)"; rm -rf "$w"; return 2; }
-  if git worktree add --detach "$w/base" "$base" >/dev/null 2>&1 && [ -f "$w/base/$dir/Cargo.toml" ] && deny_findings "$w/base/$dir" "$w/b.txt"; then :; else echo "base not scannable; empty baseline"; : > "$w/b.txt"; fi
+  local hok=1 bexists=0 bok=0
+  deny_findings "$PWD/$dir" "$w/h.txt" || hok=0
+  if git worktree add --detach "$w/base" "$base" >/dev/null 2>&1 && [ -f "$w/base/$dir/Cargo.toml" ]; then
+    bexists=1; deny_findings "$w/base/$dir" "$w/b.txt" && bok=1
+  fi
+  [ "$bok" = 1 ] || { echo "base not scannable; empty baseline"; : > "$w/b.txt"; }
   git worktree remove --force "$w/base" >/dev/null 2>&1 || true
+  if [ "$hok" = 0 ]; then
+    # A nested project that already existed in the base and was ALREADY unscannable there (e.g. a fuzz crate that is
+    # neither a workspace member nor excluded) cannot regress; skip it with a warning. Root, new, or previously
+    # scannable projects that now fail still fail closed.
+    if [ "$dir" != "." ] && [ "$bexists" = 1 ] && [ "$bok" = 0 ]; then
+      echo "warning: $dir was already unscannable in the base; skipping (pre-existing)"; rm -rf "$w"; return 0
+    fi
+    echo "cargo-deny failed on head in $dir (fail closed)"; rm -rf "$w"; return 2
+  fi
   new="$(comm -13 "$w/b.txt" "$w/h.txt")" || { echo "comm failed (fail closed)"; rm -rf "$w"; return 2; }
   local nh nb; nh=$(wc -l < "$w/h.txt"); nb=$(wc -l < "$w/b.txt")
   rm -rf "$w"
