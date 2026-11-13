@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Создать аккаунт";
 "screen_change_server_subtitle" = "Какой адрес у вашего сервера?";
 "screen_change_server_textfield_footer_login" = "Если Ваш аккаунт предоставлен Вашей компанией или сообществом, смените сервер (example: companyname.com).";
-"screen_change_server_textfield_footer_register" = "Создайте аккаунт бесплатно на matrix.org. Если Вы хотите создать аккаунт на другом сервере, смените сервер здесь (например: communityname.org).";
+"screen_change_server_textfield_footer_register" = "Создайте аккаунт бесплатно на workspace.seventwos.org. Если Вы хотите создать аккаунт на другом сервере, смените сервер здесь (например: communityname.org).";
 "screen_change_server_textfield_header" = "Сервер";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "Выберите свой сервер";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "Видимость";
 "screen_security_and_privacy_title" = "Безопасность и конфиденциальность";
 "screen_server_confirmation_change_server" = "Сменить сервер";
-"screen_server_confirmation_message_login_element_dot_io" = "Частный сервер для сотрудников Element.";
+"screen_server_confirmation_message_login_element_dot_io" = "Частный сервер для сотрудников Seventwos.";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix — это открытая сеть для безопасной децентрализованной связи.";
 "screen_server_confirmation_message_register" = "Здесь будут храниться ваши разговоры — точно так же, как вы используете электронную почту для хранения писем.";
 "screen_server_confirmation_title_login" = "Вы собираетесь войти в %1$@";

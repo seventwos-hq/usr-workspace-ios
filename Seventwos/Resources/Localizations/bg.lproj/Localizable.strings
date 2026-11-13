@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Create account";
 "screen_change_server_subtitle" = "Какъв е адресът на вашия сървър?";
 "screen_change_server_textfield_footer_login" = "If your account is provided by your company or a community, then change the account provider (example: companyname.com).";
-"screen_change_server_textfield_footer_register" = "Create an account on matrix.org for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).";
+"screen_change_server_textfield_footer_register" = "Create an account on workspace.seventwos.org for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).";
 "screen_change_server_textfield_header" = "Account provider";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "Изберете своя сървър";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "Visibility";
 "screen_security_and_privacy_title" = "Защита и поверителност";
 "screen_server_confirmation_change_server" = "Промяна на доставчика на акаунт";
-"screen_server_confirmation_message_login_element_dot_io" = "Частен сървър за служителите на Element.";
+"screen_server_confirmation_message_login_element_dot_io" = "Частен сървър за служителите на Seventwos.";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix е отворена мрежа за сигурна, децентрализирана комуникация.";
 "screen_server_confirmation_message_register" = "Това е мястото, където ще живеят вашите разговори — точно както бихте използвали имейл доставчик, за да съхранявате вашите имейли.";
 "screen_server_confirmation_title_login" = "На път сте да влезете в %1$@";

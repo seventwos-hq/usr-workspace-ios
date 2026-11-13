@@ -725,7 +725,7 @@
 "screen_change_server_navigation_title_register" = "إنشاء حساب";
 "screen_change_server_subtitle" = "ما عنوان السيرفر خاصتك؟";
 "screen_change_server_textfield_footer_login" = "إذا كان حسابك مقدمًا من شركتك أو مجتمع ما، فقم بتغيير مزود الحساب (مثال: companyname.com).";
-"screen_change_server_textfield_footer_register" = "أنشئ حسابًا على موقع matrix.org مجانًا. إذا كنت ترغب في إنشاء حساب مع مزود خدمة مختلف، فقم بتغييره وفقًا لذلك (مثال: communityname.org).";
+"screen_change_server_textfield_footer_register" = "أنشئ حسابًا على موقع workspace.seventwos.org مجانًا. إذا كنت ترغب في إنشاء حساب مع مزود خدمة مختلف، فقم بتغييره وفقًا لذلك (مثال: communityname.org).";
 "screen_change_server_textfield_header" = "مزود الحساب";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "اختر خادمك";
@@ -1496,7 +1496,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "الظهور";
 "screen_security_and_privacy_title" = "الأمان والخصوصية";
 "screen_server_confirmation_change_server" = "تغيير مزوّد الحسابات";
-"screen_server_confirmation_message_login_element_dot_io" = "سيرفر خاص بموظّفي Element.";
+"screen_server_confirmation_message_login_element_dot_io" = "سيرفر خاص بموظّفي Seventwos.";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix عبارة عن شبكة مفتوحة للاتصالات الآمنة واللا مركزية.";
 "screen_server_confirmation_message_register" = "هذا المكان الذي تقطن فيه رسائلك — تماماً كاستخدامك مزوّد بريد إلكتروني للاحتفاظ برسائل البريد خاصّتك فيه.";
 "screen_server_confirmation_title_login" = "أنت على وشك تسجيل الدخول إلى %1$@";

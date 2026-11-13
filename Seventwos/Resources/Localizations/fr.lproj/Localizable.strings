@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Créer un compte";
 "screen_change_server_subtitle" = "Quelle est l’adresse de votre serveur ?";
 "screen_change_server_textfield_footer_login" = "Si votre fournisseur de compte est fourni par votre entreprise ou une communauté, veuillez le saisir ici (exemple : monentreprise.com).";
-"screen_change_server_textfield_footer_register" = "Créez un compte sur matrix.org gratuitement. Si vous souhaitez créer un compte auprès d'un autre fournisseur, veuillez modifier l'adresse ici (exemple : monassociation.org).";
+"screen_change_server_textfield_footer_register" = "Créez un compte sur workspace.seventwos.org gratuitement. Si vous souhaitez créer un compte auprès d'un autre fournisseur, veuillez modifier l'adresse ici (exemple : monassociation.org).";
 "screen_change_server_textfield_header" = "Fournisseur de compte";
 "screen_change_server_textfield_placeholder" = "exemple.com";
 "screen_change_server_title" = "Choisissez votre serveur";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "Visibilité";
 "screen_security_and_privacy_title" = "Sécurité & confidentialité";
 "screen_server_confirmation_change_server" = "Changer de fournisseur de compte";
-"screen_server_confirmation_message_login_element_dot_io" = "Un serveur privé pour les employés d’Element.";
+"screen_server_confirmation_message_login_element_dot_io" = "Un serveur privé pour les employés d’Seventwos.";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix est un réseau ouvert pour une communication sécurisée et décentralisée.";
 "screen_server_confirmation_message_register" = "C’est ici que vos conversations seront enregistrées, comme vous le feriez avec un fournisseur de messagerie pour conserver vos e-mails.";
 "screen_server_confirmation_title_login" = "Vous êtes sur le point de vous connecter à %1$@";
