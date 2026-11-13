@@ -24,9 +24,9 @@ jobs:
       # Run the check script from the default branch, not the PR checkout, so a PR cannot replace it.
       # Fallback to the PR copy ONLY when the default branch has no script yet (bootstrap PR).
       - run: |
-          git fetch origin "$DEFAULT_BRANCH"
-          if git show "origin/$DEFAULT_BRANCH:.forgejo/scripts/security-check.sh" > "$RUNNER_TEMP/sc.sh" 2>/dev/null && [ -s "$RUNNER_TEMP/sc.sh" ]; then
-            echo "using trusted script from origin/$DEFAULT_BRANCH"
+          git fetch origin "+refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          if git show "refs/remotes/origin/$DEFAULT_BRANCH:.forgejo/scripts/security-check.sh" > "$RUNNER_TEMP/sc.sh" 2>/dev/null && [ -s "$RUNNER_TEMP/sc.sh" ]; then
+            echo "using trusted script from refs/remotes/origin/$DEFAULT_BRANCH"
           else
             echo "warning: no script on origin/$DEFAULT_BRANCH (bootstrap); using the PR copy"
             cp .forgejo/scripts/security-check.sh "$RUNNER_TEMP/sc.sh"
@@ -48,9 +48,9 @@ jobs:
       # Run the check script from the default branch, not the PR checkout, so a PR cannot replace it.
       # Fallback to the PR copy ONLY when the default branch has no script yet (bootstrap PR).
       - run: |
-          git fetch origin "$DEFAULT_BRANCH"
-          if git show "origin/$DEFAULT_BRANCH:.forgejo/scripts/security-check.sh" > "$RUNNER_TEMP/sc.sh" 2>/dev/null && [ -s "$RUNNER_TEMP/sc.sh" ]; then
-            echo "using trusted script from origin/$DEFAULT_BRANCH"
+          git fetch origin "+refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          if git show "refs/remotes/origin/$DEFAULT_BRANCH:.forgejo/scripts/security-check.sh" > "$RUNNER_TEMP/sc.sh" 2>/dev/null && [ -s "$RUNNER_TEMP/sc.sh" ]; then
+            echo "using trusted script from refs/remotes/origin/$DEFAULT_BRANCH"
           else
             echo "warning: no script on origin/$DEFAULT_BRANCH (bootstrap); using the PR copy"
             cp .forgejo/scripts/security-check.sh "$RUNNER_TEMP/sc.sh"
