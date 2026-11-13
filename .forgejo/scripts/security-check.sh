@@ -61,11 +61,12 @@ run_gitleaks() {
   echo "gitleaks range: $r"
   # Trusted rules only: config and ignore file come from the protected default branch, never from the proposed tree or a prior branch tip.
   # (gitleaks would otherwise auto-load ./.gitleaks.toml / ./.gitleaksignore from the checkout.)
-  # Trusted ref: the PR base, or the pre-push tip for a push. Never the default-branch tip on a default-branch push
-  # (checkout sets it to the pushed HEAD, so the scanned commits would supply their own allowlist).
+  # Trusted ref: pre-push tip ONLY for a push to the default branch (protected); every other event/branch uses the
+  # default-branch tip (a feature-branch "before" tip is attacker-controlled). On a default-branch push with no usable
+  # pre-push tip, fall back to built-in rules with no ignores (empty tree).
   local base cfgf ign
-  if [ -n "${BASE_SHA:-}" ] && [ "$BASE_SHA" != "$ZERO" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then base="$BASE_SHA"
-  elif [ "$EVENT" != "pull_request" ] && [ "${REF_NAME:-}" = "${DEFAULT_BRANCH:-main}" ]; then base="$EMPTY_TREE"
+  if [ "$EVENT" != "pull_request" ] && [ "${REF_NAME:-}" = "${DEFAULT_BRANCH:-main}" ]; then
+    if [ -n "${BASE_SHA:-}" ] && [ "$BASE_SHA" != "$ZERO" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then base="$BASE_SHA"; else base="$EMPTY_TREE"; fi
   else base="refs/remotes/origin/${DEFAULT_BRANCH:-main}"; fi
   cfgf="$TOOLS/gitleaks-trusted.toml"; ign="$TOOLS/gitleaksignore-trusted"
   if ! git show "${base}:.gitleaks.toml" > "$cfgf" 2>/dev/null; then
