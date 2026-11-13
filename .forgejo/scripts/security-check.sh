@@ -49,6 +49,9 @@ range_args() {
 base_commit() {
   local def="refs/remotes/origin/${DEFAULT_BRANCH:-main}"
   if [ "$EVENT" = "pull_request" ]; then echo "$BASE_SHA"
+  elif [ "${REF_NAME:-}" != "${DEFAULT_BRANCH:-main}" ]; then
+    # push to a contributor branch: baseline is the default-branch tip, never the previous pushed tip of that branch
+    git rev-parse -q --verify "${def}^{commit}" 2>/dev/null || echo "$EMPTY_TREE"
   elif [ -n "${BASE_SHA:-}" ] && [ "$BASE_SHA" != "$ZERO" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then echo "$BASE_SHA"
   elif unusable_default_push; then echo "$EMPTY_TREE"
   else git merge-base "$HEAD_SHA" "$def" 2>/dev/null || echo "$EMPTY_TREE"; fi
@@ -270,6 +273,13 @@ TOML
     # neither a workspace member nor excluded) cannot regress; skip it with a warning. Root, new, or previously
     # scannable projects that now fail still fail closed.
     if [ "$dir" != "." ] && [ "$bexists" = 1 ] && [ "$bok" = 0 ]; then
+      # Only safe if nothing under the project changed between the trusted baseline and the head; else fail closed.
+      local chg
+      chg="$(git diff --name-only "$base...$HEAD_SHA" -- "$dir")" || { echo "git diff failed for $dir (fail closed)"; rm -rf "$w"; return 2; }
+      if [ -n "$chg" ]; then
+        echo "cargo-deny cannot scan $dir (unscannable in base and head) and files under it changed in this change (fail closed):"; echo "$chg"
+        rm -rf "$w"; return 2
+      fi
       echo "warning: $dir was already unscannable in the base; skipping (pre-existing)"; rm -rf "$w"; return 0
     fi
     echo "cargo-deny failed on head in $dir (fail closed)"; rm -rf "$w"; return 2
