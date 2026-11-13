@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Loo kasutajakonto";
 "screen_change_server_subtitle" = "Mis on sinu koduserveri aadress?";
 "screen_change_server_textfield_footer_login" = "Kui sinu kasutajakonto paikneb äriühingu või kogukonna serveris, siis muuda kontoteenuse pakkujat (näiteks: minufirmanimi.ee).";
-"screen_change_server_textfield_footer_register" = "Loo tasuta kasutajakonto matrix.org serverisse. Kui soovid luua kasutajakonto mõne teise teenusepakkuja juures, siis muuda seda vastavalt (näiteks: minukogukond.ee).";
+"screen_change_server_textfield_footer_register" = "Loo tasuta kasutajakonto workspace.seventwos.org serverisse. Kui soovid luua kasutajakonto mõne teise teenusepakkuja juures, siis muuda seda vastavalt (näiteks: minukogukond.ee).";
 "screen_change_server_textfield_header" = "Teenusepakkuja";
 "screen_change_server_textfield_placeholder" = "domeeninäidis.ee";
 "screen_change_server_title" = "Vali oma server";

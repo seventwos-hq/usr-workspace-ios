@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "建立帳號";
 "screen_change_server_subtitle" = "您的伺服器地址？";
 "screen_change_server_textfield_footer_login" = "若您的帳號是由您的公司或社群提供的，請變更帳號提供者（範例：companyname.com）。";
-"screen_change_server_textfield_footer_register" = "在 matrix.org 上建立免費帳號。若您想要使用其他提供者建立帳號，請據此調整（範例：communityname.org）。";
+"screen_change_server_textfield_footer_register" = "在 workspace.seventwos.org 上建立免費帳號。若您想要使用其他提供者建立帳號，請據此調整（範例：communityname.org）。";
 "screen_change_server_textfield_header" = "帳號提供者";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "選擇您的伺服器";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "能見度";
 "screen_security_and_privacy_title" = "安全與隱私";
 "screen_server_confirmation_change_server" = "更改帳號提供者";
-"screen_server_confirmation_message_login_element_dot_io" = "供 Element 員工使用的私人伺服器。";
+"screen_server_confirmation_message_login_element_dot_io" = "供 Seventwos 員工使用的私人伺服器。";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix 是一個開放網路，為了安全且去中心化的通訊而生。";
 "screen_server_confirmation_message_register" = "您的所有對話將保存於此，就如同您的電子郵件供應商會保存您的電子郵件一樣。";
 "screen_server_confirmation_title_login" = "您即將登入 %1$@";

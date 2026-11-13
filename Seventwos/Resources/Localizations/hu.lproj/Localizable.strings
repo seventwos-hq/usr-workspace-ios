@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Create account";
 "screen_change_server_subtitle" = "Mi a kiszolgálója címe?";
 "screen_change_server_textfield_footer_login" = "If your account is provided by your company or a community, then change the account provider (example: companyname.com).";
-"screen_change_server_textfield_footer_register" = "Create an account on matrix.org for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).";
+"screen_change_server_textfield_footer_register" = "Create an account on workspace.seventwos.org for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).";
 "screen_change_server_textfield_header" = "Account provider";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "Válassza ki a kiszolgálóját";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "Láthatóság";
 "screen_security_and_privacy_title" = "Biztonság és adatvédelem";
 "screen_server_confirmation_change_server" = "Fiókszolgáltató módosítása";
-"screen_server_confirmation_message_login_element_dot_io" = "Egy privát kiszolgáló az Element alkalmazottai számára.";
+"screen_server_confirmation_message_login_element_dot_io" = "Egy privát kiszolgáló az Seventwos alkalmazottai számára.";
 "screen_server_confirmation_message_login_matrix_dot_org" = "A Matrix egy nyitott hálózat a biztonságos, decentralizált kommunikációhoz.";
 "screen_server_confirmation_message_register" = "Itt lesznek a beszélgetései – ahogyan egy e-mail-szolgáltatást is használna a levelei kezeléséhez.";
 "screen_server_confirmation_title_login" = "Hamarosan bejelentkezik ebbe: %1$@";

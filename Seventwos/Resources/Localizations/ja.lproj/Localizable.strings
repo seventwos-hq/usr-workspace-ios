@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "アカウントを作成";
 "screen_change_server_subtitle" = "サーバーのアドレスは何ですか？";
 "screen_change_server_textfield_footer_login" = "アカウントが会社やコミュニティから発行されている場合は、アカウント提供元を変更してください (例: kaisha-mei.com)。";
-"screen_change_server_textfield_footer_register" = "matrix.org 上に無料でアカウントを作成できます。異なるアカウント提供元上にアカウントを作成したい場合は、それにならって変更してください (例: dantai-mei.org)。";
+"screen_change_server_textfield_footer_register" = "workspace.seventwos.org 上に無料でアカウントを作成できます。異なるアカウント提供元上にアカウントを作成したい場合は、それにならって変更してください (例: dantai-mei.org)。";
 "screen_change_server_textfield_header" = "アカウント提供元";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "サーバーを選択";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "視認性";
 "screen_security_and_privacy_title" = "セキュリティとプライバシー";
 "screen_server_confirmation_change_server" = "アカウント提供元を変更";
-"screen_server_confirmation_message_login_element_dot_io" = "Element 開発者用の非公開のサーバーです。";
+"screen_server_confirmation_message_login_element_dot_io" = "Seventwos 開発者用の非公開のサーバーです。";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix は安全で分散型のオープンなネットワークです。";
 "screen_server_confirmation_message_register" = "メールアプリのように、あなたの会話はこのサーバー上に保管されます。";
 "screen_server_confirmation_title_login" = "%1$@ にサインインを試みています";

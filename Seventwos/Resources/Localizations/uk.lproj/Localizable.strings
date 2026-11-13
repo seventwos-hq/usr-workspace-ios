@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Створити обліковий запис";
 "screen_change_server_subtitle" = "Яка адреса вашого сервера?";
 "screen_change_server_textfield_footer_login" = "Якщо ваш обліковий запис надано вашою компанією або спільнотою, змініть постачальника облікового запису (наприклад: companyname.com).";
-"screen_change_server_textfield_footer_register" = "Створіть обліковий запис на matrix.org безплатно. Якщо ви хочете створити обліковий запис у іншого постачальника, змініть його відповідно (наприклад: communityname.org).";
+"screen_change_server_textfield_footer_register" = "Створіть обліковий запис на workspace.seventwos.org безплатно. Якщо ви хочете створити обліковий запис у іншого постачальника, змініть його відповідно (наприклад: communityname.org).";
 "screen_change_server_textfield_header" = "Постачальник облікового запису";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "Виберіть свій сервер";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "Видимість";
 "screen_security_and_privacy_title" = "Безпека й приватність";
 "screen_server_confirmation_change_server" = "Змінити провайдера облікового запису";
-"screen_server_confirmation_message_login_element_dot_io" = "Приватний сервер для співробітників Element.";
+"screen_server_confirmation_message_login_element_dot_io" = "Приватний сервер для співробітників Seventwos.";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix — це відкрита мережа для безпечної, децентралізованої комунікації.";
 "screen_server_confirmation_message_register" = "Тут розміщуватимуться ваші розмови — так само як у поштовій скриньці для зберігання своїх електронних листів.";
 "screen_server_confirmation_title_login" = "Ви збираєтесь увійти в %1$@";

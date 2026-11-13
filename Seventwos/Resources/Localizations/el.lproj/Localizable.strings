@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Create account";
 "screen_change_server_subtitle" = "Ποια είναι η διεύθυνση του διακομιστή σου;";
 "screen_change_server_textfield_footer_login" = "If your account is provided by your company or a community, then change the account provider (example: companyname.com).";
-"screen_change_server_textfield_footer_register" = "Create an account on matrix.org for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).";
+"screen_change_server_textfield_footer_register" = "Create an account on workspace.seventwos.org for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).";
 "screen_change_server_textfield_header" = "Account provider";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "Επέλεξε το διακομιστή σου";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "Ορατότητα";
 "screen_security_and_privacy_title" = "Ασφάλεια & απόρρητο";
 "screen_server_confirmation_change_server" = "Αλλαγή παρόχου λογαριασμού";
-"screen_server_confirmation_message_login_element_dot_io" = "Ένας ιδιωτικός διακομιστής για υπαλλήλους του Element.";
+"screen_server_confirmation_message_login_element_dot_io" = "Ένας ιδιωτικός διακομιστής για υπαλλήλους του Seventwos.";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Το Matrix είναι ένα ανοιχτό δίκτυο για ασφαλή, αποκεντρωμένη επικοινωνία.";
 "screen_server_confirmation_message_register" = "Εδώ θα ζουν οι συνομιλίες σου - όπως θα χρησιμοποιούσες έναν πάροχο email για να διατηρήσεις τα email σου.";
 "screen_server_confirmation_title_login" = "Πρόκειται να συνδεθείς στο %1$@";

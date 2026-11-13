@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Izradi račun";
 "screen_change_server_subtitle" = "Koja je adresa vašeg poslužitelja?";
 "screen_change_server_textfield_footer_login" = "Ako vam je račun omogućila vaša tvrtka ili zajednica, promijenite pružatelja računa (primjer: nazivtvrtke.com).";
-"screen_change_server_textfield_footer_register" = "Besplatno kreirajte račun na matrix.org. Ako želite kreirati račun kod drugog pružatelja usluga, promijenite ga u skladu s tim (primjer: communityname.org).";
+"screen_change_server_textfield_footer_register" = "Besplatno kreirajte račun na workspace.seventwos.org. Ako želite kreirati račun kod drugog pružatelja usluga, promijenite ga u skladu s tim (primjer: communityname.org).";
 "screen_change_server_textfield_header" = "Pružatelj usluga računa";
 "screen_change_server_textfield_placeholder" = "primjer.com";
 "screen_change_server_title" = "Odaberite svoj poslužitelj";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "Vidljivost";
 "screen_security_and_privacy_title" = "Sigurnost i privatnost";
 "screen_server_confirmation_change_server" = "Promijeni davatelja usluga računa";
-"screen_server_confirmation_message_login_element_dot_io" = "Privatni poslužitelj za zaposlenike aplikacije Element.";
+"screen_server_confirmation_message_login_element_dot_io" = "Privatni poslužitelj za zaposlenike aplikacije Seventwos.";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix je otvorena mreža za sigurnu, decentraliziranu komunikaciju.";
 "screen_server_confirmation_message_register" = "Ovdje će se čuvati vaši razgovori – baš kao što biste koristili davatelja usluga e-pošte za čuvanje svojih e-poruka.";
 "screen_server_confirmation_title_login" = "Prijavit ćete se na poslužitelj %1$@";

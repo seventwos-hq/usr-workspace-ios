@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Create account";
 "screen_change_server_subtitle" = "Vad är adressen till din server?";
 "screen_change_server_textfield_footer_login" = "If your account is provided by your company or a community, then change the account provider (example: companyname.com).";
-"screen_change_server_textfield_footer_register" = "Create an account on matrix.org for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).";
+"screen_change_server_textfield_footer_register" = "Create an account on workspace.seventwos.org for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).";
 "screen_change_server_textfield_header" = "Account provider";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "Välj din server";
@@ -1497,7 +1497,7 @@
 "screen_security_and_privacy_room_visibility_section_header" = "Synlighet";
 "screen_security_and_privacy_title" = "Säkerhet och sekretess";
 "screen_server_confirmation_change_server" = "Byt kontoleverantör";
-"screen_server_confirmation_message_login_element_dot_io" = "En privat server för Element-anställda.";
+"screen_server_confirmation_message_login_element_dot_io" = "En privat server för Seventwos-anställda.";
 "screen_server_confirmation_message_login_matrix_dot_org" = "Matrix är ett öppet nätverk för säker, decentraliserad kommunikation.";
 "screen_server_confirmation_message_register" = "Det är här dina konversationer kommer att sparas - precis som du skulle använda en e-postleverantör för att spara dina e-brev.";
 "screen_server_confirmation_title_login" = "Du är på väg att logga in på %1$@";
