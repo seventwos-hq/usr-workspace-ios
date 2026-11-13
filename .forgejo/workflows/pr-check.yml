@@ -9,7 +9,7 @@ jobs:
     steps:
       - run: apt-get update && apt-get install -y --no-install-recommends nodejs git python3 python3-yaml || true
       - uses: actions/checkout@v4
-      - run: swiftlint lint --quiet --reporter emoji || true
+      - run: swiftlint lint --quiet --reporter emoji
       - name: YAML / plist / pbxproj sanity
         run: |
           python3 - <<'PY'
