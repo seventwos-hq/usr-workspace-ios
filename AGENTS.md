@@ -51,3 +51,13 @@ Proposal only, not adopted or implemented: weekly sprints, with a semver release
 - Upstream tracking in `.seventwos/` is validated by CI; don't edit casually.
 - Git hooks in `.githooks/` (pre-commit/pre-push) may run checks.
 - Existing skill dirs: `.agents/skills`, `.claude/skills`.
+
+## UI changes need screenshots
+
+Any user-visible change (screens, layout, styling, branding, text, flows) must include:
+
+- An "after" screenshot of every changed screen, and a "before" screenshot when an existing screen changed.
+- iOS: capture from the simulator or a CI screenshot; if impossible, say why in the PR.
+- Use realistic data, not empty states.
+- Attach screenshots to the Notion card and to the PR description.
+- Missing screenshots = not approved.
