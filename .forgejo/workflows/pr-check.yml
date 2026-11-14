@@ -25,3 +25,27 @@ jobs:
           if p.count('{') != p.count('}'): print('pbxproj brace mismatch'); bad += 1
           sys.exit(bad)
           PY
+
+  # Semgrep CE (OSS CLI, no login/app/metrics). REPORT-ONLY: never fails the check.
+  # Plan: propose making it blocking (drop `|| true`, use --error) after 2 weeks of reports.
+  semgrep:
+    runs-on: dev-vm
+    container: python:3.12-bookworm
+    timeout-minutes: 20
+    continue-on-error: true
+    env:
+      SEMGREP_VERSION: "1.185.0"
+      SEMGREP_SEND_METRICS: "off"
+    steps:
+      - run: apt-get update && apt-get install -y --no-install-recommends nodejs git || true
+      - uses: actions/checkout@v4
+      - name: Semgrep CE scan (report-only)
+        run: |
+          python3 -m venv /tmp/sg
+          /tmp/sg/bin/pip install --quiet "semgrep==${SEMGREP_VERSION}"
+          /tmp/sg/bin/semgrep --version
+          /tmp/sg/bin/semgrep scan --config p/default --metrics=off --disable-version-check \
+            --jobs 1 --max-memory 1500 --timeout 20 --error=false --quiet --text --output /tmp/semgrep.txt || true
+          echo "=== Semgrep findings (report-only) ==="
+          tail -n 200 /tmp/semgrep.txt || true
+          grep -cE '^ +❯❯' /tmp/semgrep.txt || true
