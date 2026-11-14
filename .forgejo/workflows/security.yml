@@ -4,11 +4,13 @@ name: security
 # Full-history and full-dependency scans stay in the weekly dev-VM scan.
 on:
   push:
+    branches: [main, develop]
   pull_request:
 permissions:
   contents: read
 jobs:
   gitleaks:
+    timeout-minutes: 20
     runs-on: dev-vm
     env:
       EVENT: ${{ github.event_name }}
@@ -33,6 +35,7 @@ jobs:
           fi
           bash "$RUNNER_TEMP/sc.sh" gitleaks
   dependencies:
+    timeout-minutes: 20
     runs-on: dev-vm
     env:
       EVENT: ${{ github.event_name }}
