@@ -201,7 +201,8 @@ for l in open(sys.argv[1]):
     except Exception: continue
     if d.get("type")=="summary": summary=True
     f=d.get("fields",{})
-    if d.get("type")!="diagnostic" and str(d.get("level","")).upper()=="ERROR":
+    # cargo-deny 0.20 JSON logs carry level inside "fields" ({"type":"log","fields":{"level":"ERROR",...}})
+    if d.get("type")!="diagnostic" and str(d.get("level") or f.get("level") or "").upper()=="ERROR":
         sys.stderr.write("cargo-deny logged an error: "+str(f.get("message",""))+"\n"); bad=True
     if d.get("type")=="diagnostic" and f.get("severity")=="error":
         ks=set()
