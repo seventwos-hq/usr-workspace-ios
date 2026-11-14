@@ -1,0 +1,58 @@
+name: security
+# gitleaks runs on every push to any branch and every PR (pushed range only).
+# Dependency checks (osv-scanner, cargo-deny) skip themselves unless a lockfile or deny.toml changed.
+# Full-history and full-dependency scans stay in the weekly dev-VM scan.
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  gitleaks:
+    runs-on: dev-vm
+    env:
+      EVENT: ${{ github.event_name }}
+      BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+      HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      REF_NAME: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: git config --global --add safe.directory "$PWD"
+      # Run the check script from the default branch, not the PR checkout, so a PR cannot replace it.
+      # Fallback to the PR copy ONLY when the default branch has no script yet (bootstrap PR).
+      - run: |
+          git fetch origin "+refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          if git show "refs/remotes/origin/$DEFAULT_BRANCH:.forgejo/scripts/security-check.sh" > "$RUNNER_TEMP/sc.sh" 2>/dev/null && [ -s "$RUNNER_TEMP/sc.sh" ]; then
+            echo "using trusted script from refs/remotes/origin/$DEFAULT_BRANCH"
+          else
+            echo "warning: no script on origin/$DEFAULT_BRANCH (bootstrap); using the PR copy"
+            cp .forgejo/scripts/security-check.sh "$RUNNER_TEMP/sc.sh"
+          fi
+          bash "$RUNNER_TEMP/sc.sh" gitleaks
+  dependencies:
+    runs-on: dev-vm
+    env:
+      EVENT: ${{ github.event_name }}
+      BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+      HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      REF_NAME: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: git config --global --add safe.directory "$PWD"
+      # Run the check script from the default branch, not the PR checkout, so a PR cannot replace it.
+      # Fallback to the PR copy ONLY when the default branch has no script yet (bootstrap PR).
+      - run: |
+          git fetch origin "+refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          if git show "refs/remotes/origin/$DEFAULT_BRANCH:.forgejo/scripts/security-check.sh" > "$RUNNER_TEMP/sc.sh" 2>/dev/null && [ -s "$RUNNER_TEMP/sc.sh" ]; then
+            echo "using trusted script from refs/remotes/origin/$DEFAULT_BRANCH"
+          else
+            echo "warning: no script on origin/$DEFAULT_BRANCH (bootstrap); using the PR copy"
+            cp .forgejo/scripts/security-check.sh "$RUNNER_TEMP/sc.sh"
+          fi
+          bash "$RUNNER_TEMP/sc.sh" deps
