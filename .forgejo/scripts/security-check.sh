@@ -5,11 +5,21 @@
 set -euo pipefail
 
 GITLEAKS_VERSION=8.28.0
-GITLEAKS_SHA256=a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb
 OSV_VERSION=2.2.2
-OSV_SHA256=c799274b682e0437c802d4714a136ad09b39c65547c460049ba5358d28afa576
 DENY_VERSION=0.20.2
-DENY_SHA256=9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f
+
+# Per-architecture pins (x86_64 and aarch64); the download is picked by uname -m. Unknown arch fails closed.
+case "$(uname -m)" in
+  x86_64|amd64)
+    GITLEAKS_ARCH=x64;   GITLEAKS_SHA256=a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb
+    OSV_ARCH=amd64;      OSV_SHA256=c799274b682e0437c802d4714a136ad09b39c65547c460049ba5358d28afa576
+    DENY_ARCH=x86_64;    DENY_SHA256=9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f ;;
+  aarch64|arm64)
+    GITLEAKS_ARCH=arm64; GITLEAKS_SHA256=eff65261156100e5d94a6b3dec313d532fddfe19ae1590bf7a2b4f2699128356
+    OSV_ARCH=arm64;      OSV_SHA256=62004a8b3c84d5041e6565113cc98af17da8d5ef9ebd070d355f1522bcd1d383
+    DENY_ARCH=aarch64;   DENY_SHA256=995c82be0defc7a025cae49a2aa2644ce8245c9a3318fc4103907c6a285e8c7d ;;
+  *) echo "unsupported architecture: $(uname -m) (fail closed)"; exit 2 ;;
+esac
 
 # Fresh private per-run tools dir: a pre-existing/planted executable is never trusted; every binary is downloaded and checksum-verified in this run.
 TOOLS="$(mktemp -d "${RUNNER_TEMP:-/tmp}/sec-tools.XXXXXX")"
@@ -68,7 +78,7 @@ trusted_ref() {
 }
 
 run_gitleaks() {
-  fetch "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" "$GITLEAKS_SHA256" "$TOOLS/gl.tgz"
+  fetch "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_${GITLEAKS_ARCH}.tar.gz" "$GITLEAKS_SHA256" "$TOOLS/gl.tgz"
   tar -xzf "$TOOLS/gl.tgz" -C "$TOOLS" gitleaks
   local r; r="$(range_args)"
   echo "gitleaks range: $r"
@@ -102,7 +112,7 @@ run_deps() {
   grep -azvE '(^|/)(deny|Cargo)\.toml$' "$changed" > "$lockfiles" || true
   local rc=0
   if [ -s "$lockfiles" ]; then
-    fetch "https://github.com/google/osv-scanner/releases/download/v${OSV_VERSION}/osv-scanner_linux_amd64" "$OSV_SHA256" "$TOOLS/osv-scanner"
+    fetch "https://github.com/google/osv-scanner/releases/download/v${OSV_VERSION}/osv-scanner_linux_${OSV_ARCH}" "$OSV_SHA256" "$TOOLS/osv-scanner"
     chmod +x "$TOOLS/osv-scanner"
     osv_diff "$base" "$lockfiles" || rc=$?
     [ "$rc" -le 1 ] || { echo "osv-scanner stage failed (exit $rc)"; exit "$rc"; }
@@ -231,8 +241,8 @@ deny_diff() { # base manifest-dir (relative to repo root)
   local base="$1" dir="${2:-.}" w new
   w="$(mktemp -d "$TOOLS/deny-diff.XXXXXX")"
   if [ ! -x "$TOOLS/cargo-deny" ]; then   # downloaded + checksum-verified once per run, reused for every manifest
-    fetch "https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}/cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz" "$DENY_SHA256" "$TOOLS/cd.tgz"
-    tar -xzf "$TOOLS/cd.tgz" -C "$TOOLS" --strip-components=1 "cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny"
+    fetch "https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}/cargo-deny-${DENY_VERSION}-${DENY_ARCH}-unknown-linux-musl.tar.gz" "$DENY_SHA256" "$TOOLS/cd.tgz"
+    tar -xzf "$TOOLS/cd.tgz" -C "$TOOLS" --strip-components=1 "cargo-deny-${DENY_VERSION}-${DENY_ARCH}-unknown-linux-musl/cargo-deny"
   fi
   # Policy (ignores, bans, sources) comes from the trusted ref, never from the proposed tree: the PR's own deny.toml
   # is never read. Lookup errors fail closed. When the trusted ref genuinely has no deny.toml (bootstrap), a fixed
