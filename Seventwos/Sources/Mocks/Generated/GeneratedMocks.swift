@@ -1043,6 +1043,11 @@ nonisolated class AppMediatorMock: AppMediatorProtocol, @unchecked Sendable {
         set(value) { underlyingAppState = value }
     }
     nonisolated(unsafe) var underlyingAppState: UIApplication.State!
+    var isCameraAvailable: Bool {
+        get { return underlyingIsCameraAvailable }
+        set(value) { underlyingIsCameraAvailable = value }
+    }
+    nonisolated(unsafe) var underlyingIsCameraAvailable: Bool!
 
     //MARK: - open
 
