@@ -146,6 +146,7 @@ struct UserDetailsEditScreen_Previews: PreviewProvider, TestablePreview {
         
         return UserDetailsEditScreenViewModel(userSession: userSession,
                                               mediaUploadingPreprocessor: .init(appSettings: .volatile()),
+                                  appMediator: AppMediatorMock(.init()),
                                               userIndicatorController: UserIndicatorControllerMock())
     }
 }
