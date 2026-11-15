@@ -223,24 +223,90 @@ sandbox_init() { # call in the main shell (not in $(...)) so SANDBOX_ROOT persis
   done
   SANDBOX_ROOT="$root"
 }
+# Reject manifests whose Cargo path references (path deps, patch/replace, workspace members, package.workspace) leave the
+# materialized tree or point at a symlink/submodule entry that was not materialized (the checked graph would silently
+# differ from the committed workspace). Symlinks/submodules not referenced by the Cargo graph are fine.
+validate_cargo_paths() { # tree-dir
+  python3 - "$1" <<'PY'
+import os,sys,fnmatch
+try: import tomllib
+except ImportError: sys.exit("python tomllib unavailable (fail closed)")
+root=os.path.realpath(sys.argv[1])
+sk_file=os.path.join(root,".skipped-entries")
+skipped=[x for x in open(sk_file).read().split("\n") if x]
+os.remove(sk_file)
+for s in skipped:
+    if os.path.basename(s) in ("Cargo.toml","Cargo.lock","deny.toml","config","config.toml","rust-toolchain","rust-toolchain.toml"):
+        sys.exit("symlink/submodule entry is a Cargo/toolchain file: "+s)
+def overlap(ref):   # a skipped entry that IS the referenced path or an ancestor of it hides part of the graph
+    rs=ref.split("/")
+    for s in skipped:
+        ss=s.split("/")
+        if len(ss)<=len(rs) and all(fnmatch.fnmatchcase(ss[i],rs[i]) for i in range(len(ss))): return s
+    return None
+def check(mdir,ref,what):
+    if not isinstance(ref,str) or ref=="": sys.exit("bad path value for "+what)
+    if os.path.isabs(ref) or "\\" in ref: sys.exit(what+" uses an absolute/odd path: "+ref)
+    rel=os.path.normpath(os.path.join(os.path.relpath(mdir,root),ref))
+    if rel==".." or rel.startswith("../") or os.path.isabs(rel): sys.exit(what+" escapes the tree: "+ref+" in "+os.path.relpath(mdir,root))
+    if rel!=".":
+        hit=overlap(rel)
+        if hit: sys.exit(what+" "+ref+" refers to unmaterialized symlink/submodule "+hit)
+def walk(o,mdir,ctx):
+    if isinstance(o,dict):
+        for k,v in o.items():
+            if k=="path" and isinstance(v,str): check(mdir,v,"path in "+ctx)
+            elif k=="workspace" and isinstance(v,str): check(mdir,v,"package.workspace")
+            elif k in ("members","exclude","default-members") and isinstance(v,list):
+                for m in v: check(mdir,m,"workspace "+k)
+            else: walk(v,mdir,ctx+"."+str(k))
+    elif isinstance(o,list):
+        for v in o: walk(v,mdir,ctx)
+for dp,dn,fn in os.walk(root):
+    if "Cargo.toml" in fn:
+        try: t=tomllib.load(open(os.path.join(dp,"Cargo.toml"),"rb"))
+        except Exception as e: sys.exit("unparseable Cargo.toml "+os.path.relpath(dp,root)+": "+str(e))
+        walk(t,dp,"Cargo.toml")
+PY
+}
 materialize_tree() { # rev -> prints dir
-  local rev="$1" d
+  local rev="$1" d key
   [ -n "$SANDBOX_ROOT" ] || return 2
-  d="$(mktemp -d "$SANDBOX_ROOT/tree.XXXXXX")" || return 2
+  key="$(git rev-parse -q --verify "${rev}^{commit}")" || return 2   # full sha: one validated copy per revision, reused across projects
+  if [ -f "$SANDBOX_ROOT/ok.$key" ]; then printf '%s\n' "$SANDBOX_ROOT/tree.$key"; return 0; fi
+  d="$SANDBOX_ROOT/tree.$key"; rm -rf "$d"; mkdir "$d" || return 2
   # Regular blobs are read straight from git objects (ls-tree + cat-file --batch). `git archive` is NOT used: it applies
   # the revision's own .gitattributes (export-ignore / export-subst), letting a PR omit or rewrite manifests and lockfiles.
   git ls-tree -r -z --full-tree "$rev" | python3 -c '
 import os,subprocess,sys
 rev,dest=sys.argv[1],sys.argv[2]
-MAXF,MAXT,total=50<<20,200<<20,0   # per-blob / per-tree byte limits (fail closed)
-ents=[e for e in sys.stdin.buffer.read().split(b"\0") if e]
+MAXF,MAXT,MAXE,MAXP,MAXPATH,total,count,pbytes=50<<20,200<<20,200000,32<<20,4096,0,0,0   # byte, entry-count and path-byte limits (fail closed)
+def entries(fh):   # stream the NUL-delimited listing; never buffer the whole tree
+    buf=b""
+    while True:
+        c=fh.read(65536)
+        if not c: break
+        buf+=c
+        while True:
+            i=buf.find(b"\0")
+            if i<0: break
+            e,buf=buf[:i],buf[i+1:]
+            if e: yield e
+        if len(buf)>MAXPATH+128: sys.exit("tree entry too long")
+    if buf: sys.exit("truncated tree listing")
 p=subprocess.Popen(["git","cat-file","--batch"],stdin=subprocess.PIPE,stdout=subprocess.PIPE)
-for e in ents:
+skipped=[]
+for e in entries(sys.stdin.buffer):
+    count+=1; pbytes+=len(e)
+    if count>MAXE: sys.exit("too many tree entries")
+    if pbytes>MAXP: sys.exit("tree path listing too large")
     meta,path=e.split(b"\t",1)
     mode,typ,sha=meta.split(b" ")
-    if typ!=b"blob" or mode not in (b"100644",b"100755"): continue   # symlinks/submodules are never materialized
     parts=path.split(b"/")
-    if path.startswith(b"/") or b".." in parts or b"" in parts: sys.exit("unsafe path in tree")
+    if len(path)>MAXPATH or path.startswith(b"/") or b".." in parts or b"" in parts: sys.exit("unsafe path in tree")
+    if typ!=b"blob" or mode not in (b"100644",b"100755"):
+        # symlinks/submodules are never materialized; they are recorded and checked against the Cargo graph by validate_cargo_paths
+        skipped.append(path.decode(errors="replace")); continue
     p.stdin.write(sha+b"\n"); p.stdin.flush()
     h=p.stdout.readline().split()
     if len(h)!=3 or h[1]!=b"blob": sys.exit("cat-file failed")
@@ -256,25 +322,31 @@ for e in ents:
             if not c: sys.exit("short read")
             f.write(c); left-=len(c)
     if p.stdout.read(1)!=b"\n": sys.exit("bad cat-file batch terminator")
-p.stdin.close(); sys.exit(p.wait())
+p.stdin.close()
+if p.wait()!=0: sys.exit("cat-file exited non-zero")
+open(os.path.join(dest,".skipped-entries"),"w").write("\n".join(skipped))   # consumed and removed by validate_cargo_paths
 ' "$rev" "$d" || { echo "cannot materialize $rev (fail closed)" >&2; return 2; }
+  validate_cargo_paths "$d" || { echo "cargo manifest path validation failed for $rev (fail closed)" >&2; return 2; }
   find "$d" -type l -delete || return 2
   find "$d" -depth \( -name .cargo -o -name rust-toolchain -o -name rust-toolchain.toml \) -exec rm -rf {} + || return 2
   if [ -n "$(find "$d" \( -type l -o -name .cargo -o -name 'rust-toolchain*' \) -print -quit)" ]; then echo "sanitizing $rev failed (fail closed)" >&2; return 2; fi
+  : > "$SANDBOX_ROOT/ok.$key" || return 2
   printf '%s\n' "$d"
 }
 
 # Concrete, trusted cargo/rustc binaries: resolved from the runner's default rustup toolchain (run from /) BEFORE entering any PR-derived
 # directory, so rustup never reads a checkout toolchain override and PATH lookup cannot pick a tree-supplied binary.
 trusted_toolchain() {
-  [ -n "${TRUSTED_CARGO:-}" ] && return 0
+  local c r
+  if [ -n "${TRUSTED_CARGO:-}" ] && [ -n "${TRUSTED_RUSTC:-}" ] && [ -x "$TRUSTED_CARGO" ] && [ -x "$TRUSTED_RUSTC" ]; then return 0; fi
   if command -v rustup >/dev/null 2>&1; then
-    TRUSTED_CARGO="$(cd / && rustup which cargo)" && TRUSTED_RUSTC="$(cd / && rustup which rustc)" \
+    c="$(cd / && rustup which cargo)" && r="$(cd / && rustup which rustc)" \
       || { echo "cannot resolve trusted stable toolchain via rustup (fail closed)"; return 2; }
   else
-    TRUSTED_CARGO="$(cd / && command -v cargo)" && TRUSTED_RUSTC="$(cd / && command -v rustc)" || { echo "cargo/rustc not found (fail closed)"; return 2; }
+    c="$(cd / && command -v cargo)" && r="$(cd / && command -v rustc)" || { echo "cargo/rustc not found (fail closed)"; return 2; }
   fi
-  [ -x "$TRUSTED_CARGO" ] && [ -x "$TRUSTED_RUSTC" ] || { echo "trusted cargo/rustc not executable (fail closed)"; return 2; }
+  [ -x "$c" ] && [ -x "$r" ] || { echo "trusted cargo/rustc not executable (fail closed)"; return 2; }
+  TRUSTED_CARGO="$c"; TRUSTED_RUSTC="$r"   # published only after both are validated
 }
 
 deny_findings() { # dir out ; returns 2 when cargo-deny did not complete (no summary = operational failure)
@@ -379,7 +451,6 @@ TOML
     cat "$w/b.log"
   fi
   [ "$bok" = 1 ] || { echo "base not scannable; empty baseline"; : > "$w/b.txt"; }
-  rm -rf "$htree" ${btree:+"$btree"}
   if [ "$hok" = 0 ]; then
     # A nested project that already existed in the base and was ALREADY unscannable there (e.g. a fuzz crate that is
     # neither a workspace member nor excluded) cannot regress; skip it with a warning. Root, new, or previously
