@@ -184,14 +184,15 @@ osv_diff() {
     # Lockfiles are read from the HEAD_SHA tree (mode + blob), never from the checkout: a symlink, submodule or other
     # non-regular entry fails closed; a path absent from HEAD_SHA is a genuine deletion.
     local ent mode
-    ent="$(git ls-tree -z "$HEAD_SHA" -- "$f" | tr -d '\0')" || { echo "git ls-tree failed for $f (fail closed)"; rm -rf "$w"; return 2; }
+    ent="$(git --literal-pathspecs ls-tree -z "$HEAD_SHA" -- "$f" | tr -d '\0')" || { echo "git ls-tree failed for $f (fail closed)"; rm -rf "$w"; return 2; }
     [ -n "$ent" ] || continue   # lockfile deleted in HEAD_SHA
     mode="${ent%% *}"
     case "$mode" in 100644|100755) ;; *) echo "lockfile $f has unsupported git mode $mode (symlink/submodule; fail closed)"; rm -rf "$w"; return 2 ;; esac
     mkdir -p -- "$w/head/$(dirname -- "$f")" "$w/base/$(dirname -- "$f")"
     git cat-file blob "${HEAD_SHA}:${f}" > "$w/head/$f" || { echo "cannot read $f from $HEAD_SHA (fail closed)"; rm -rf "$w"; return 2; }
     rm -f "$w/base/$f"
-    if [ "$(git ls-tree "$base" -- "$f" 2>/dev/null | cut -c1-6)" = 100644 ] || [ "$(git ls-tree "$base" -- "$f" 2>/dev/null | cut -c1-6)" = 100755 ]; then
+    local bmode; bmode="$(git --literal-pathspecs ls-tree "$base" -- "$f" 2>/dev/null | cut -c1-6)"   # literal pathspecs: repo-controlled names must not be read as pathspec magic
+    if [ "$bmode" = 100644 ] || [ "$bmode" = 100755 ]; then
       git cat-file blob "${base}:${f}" > "$w/base/$f" || { echo "cannot read $f from base (fail closed)"; rm -rf "$w"; return 2; }
     fi
     osv_scan "$w/head" "$f" "$w/h.json" strict || { rm -rf "$w"; return 2; }
@@ -211,32 +212,64 @@ osv_diff() {
 # everything that lets the tree steer Cargo/rustup into running code: .cargo/ config dirs, rust-toolchain(.toml)
 # overrides and all symlinks. cargo-deny/cargo metadata only ever runs inside such a copy.
 sandbox_init() { # call in the main shell (not in $(...)) so SANDBOX_ROOT persists and the EXIT trap removes it
-  if [ -z "$SANDBOX_ROOT" ]; then
-    SANDBOX_ROOT="$(mktemp -d /tmp/sec-cargo.XXXXXX)" || return 2
-    local cur; cur="$(dirname "$SANDBOX_ROOT")"
-    while :; do   # no ancestor .cargo config may exist above the sandbox (Cargo searches every parent dir)
-      if [ -e "$cur/.cargo/config" ] || [ -e "$cur/.cargo/config.toml" ]; then echo "cargo config at $cur/.cargo above sandbox (fail closed)" >&2; return 2; fi
-      [ "$cur" = / ] && break; cur="$(dirname "$cur")"
-    done
-  fi
+  [ -z "${SANDBOX_ROOT:-}" ] || return 0   # only ever set after validation succeeded (see below)
+  local root cur; root="$(mktemp -d /tmp/sec-cargo.XXXXXX)" || return 2
+  cur="$(dirname "$root")"
+  while :; do   # no ancestor .cargo config may exist above the sandbox (Cargo searches every parent dir)
+    if [ -e "$cur/.cargo/config" ] || [ -e "$cur/.cargo/config.toml" ]; then
+      echo "cargo config at $cur/.cargo above sandbox (fail closed)" >&2; rm -rf "$root"; return 2   # SANDBOX_ROOT stays unset: every later call revalidates
+    fi
+    [ "$cur" = / ] && break; cur="$(dirname "$cur")"
+  done
+  SANDBOX_ROOT="$root"
 }
 materialize_tree() { # rev -> prints dir
   local rev="$1" d
   [ -n "$SANDBOX_ROOT" ] || return 2
   d="$(mktemp -d "$SANDBOX_ROOT/tree.XXXXXX")" || return 2
-  git archive --format=tar "$rev" | tar -x -C "$d" -f - || { echo "cannot materialize $rev (fail closed)" >&2; return 2; }
+  # Regular blobs are read straight from git objects (ls-tree + cat-file --batch). `git archive` is NOT used: it applies
+  # the revision's own .gitattributes (export-ignore / export-subst), letting a PR omit or rewrite manifests and lockfiles.
+  git ls-tree -r -z --full-tree "$rev" | python3 -c '
+import os,subprocess,sys
+rev,dest=sys.argv[1],sys.argv[2]
+MAXF,MAXT,total=50<<20,200<<20,0   # per-blob / per-tree byte limits (fail closed)
+ents=[e for e in sys.stdin.buffer.read().split(b"\0") if e]
+p=subprocess.Popen(["git","cat-file","--batch"],stdin=subprocess.PIPE,stdout=subprocess.PIPE)
+for e in ents:
+    meta,path=e.split(b"\t",1)
+    mode,typ,sha=meta.split(b" ")
+    if typ!=b"blob" or mode not in (b"100644",b"100755"): continue   # symlinks/submodules are never materialized
+    parts=path.split(b"/")
+    if path.startswith(b"/") or b".." in parts or b"" in parts: sys.exit("unsafe path in tree")
+    p.stdin.write(sha+b"\n"); p.stdin.flush()
+    h=p.stdout.readline().split()
+    if len(h)!=3 or h[1]!=b"blob": sys.exit("cat-file failed")
+    n=int(h[2])
+    if n>MAXF: sys.exit("blob too large: "+path.decode(errors="replace"))
+    total+=n
+    if total>MAXT: sys.exit("tree too large")
+    t=os.path.join(dest.encode(),path); os.makedirs(os.path.dirname(t),exist_ok=True)
+    left=n
+    with open(t,"wb") as f:   # bounded 64 KiB chunks: never hold a whole blob in RAM
+        while left:
+            c=p.stdout.read(min(65536,left))
+            if not c: sys.exit("short read")
+            f.write(c); left-=len(c)
+    if p.stdout.read(1)!=b"\n": sys.exit("bad cat-file batch terminator")
+p.stdin.close(); sys.exit(p.wait())
+' "$rev" "$d" || { echo "cannot materialize $rev (fail closed)" >&2; return 2; }
   find "$d" -type l -delete || return 2
   find "$d" -depth \( -name .cargo -o -name rust-toolchain -o -name rust-toolchain.toml \) -exec rm -rf {} + || return 2
   if [ -n "$(find "$d" \( -type l -o -name .cargo -o -name 'rust-toolchain*' \) -print -quit)" ]; then echo "sanitizing $rev failed (fail closed)" >&2; return 2; fi
   printf '%s\n' "$d"
 }
 
-# Concrete, trusted cargo/rustc binaries: resolved from the runner's stable toolchain BEFORE entering any PR-derived
+# Concrete, trusted cargo/rustc binaries: resolved from the runner's default rustup toolchain (run from /) BEFORE entering any PR-derived
 # directory, so rustup never reads a checkout toolchain override and PATH lookup cannot pick a tree-supplied binary.
 trusted_toolchain() {
   [ -n "${TRUSTED_CARGO:-}" ] && return 0
   if command -v rustup >/dev/null 2>&1; then
-    TRUSTED_CARGO="$(cd / && rustup which --toolchain stable cargo)" && TRUSTED_RUSTC="$(cd / && rustup which --toolchain stable rustc)" \
+    TRUSTED_CARGO="$(cd / && rustup which cargo)" && TRUSTED_RUSTC="$(cd / && rustup which rustc)" \
       || { echo "cannot resolve trusted stable toolchain via rustup (fail closed)"; return 2; }
   else
     TRUSTED_CARGO="$(cd / && command -v cargo)" && TRUSTED_RUSTC="$(cd / && command -v rustc)" || { echo "cargo/rustc not found (fail closed)"; return 2; }
@@ -252,6 +285,7 @@ deny_findings() { # dir out ; returns 2 when cargo-deny did not complete (no sum
   # limited to their dir + /usr/bin:/bin) and --locked, so the committed Cargo.lock is checked as-is (a stale or
   # missing lockfile fails instead of being re-resolved).
   local chome
+  [ -f "$d/Cargo.toml" ] || { echo "manifest $d/Cargo.toml missing from the materialized tree (fail closed)"; rm -f "$raw"; return 2; }
   trusted_toolchain || { rm -f "$raw"; return 2; }
   chome="$(mktemp -d "$SANDBOX_ROOT/cargohome.XXXXXX")" || { rm -f "$raw"; return 2; }
   # --config/--locked are top-level flags (before `check`) in cargo-deny 0.20. cargo-deny exits non-zero when it reports errors; completion is judged by the JSON summary below
@@ -259,7 +293,7 @@ deny_findings() { # dir out ; returns 2 when cargo-deny did not complete (no sum
       CARGO="$TRUSTED_CARGO" RUSTC="$TRUSTED_RUSTC" \
       ${SSL_CERT_FILE:+SSL_CERT_FILE="$SSL_CERT_FILE"} ${SSL_CERT_DIR:+SSL_CERT_DIR="$SSL_CERT_DIR"} \
       ${https_proxy:+https_proxy="$https_proxy"} ${HTTPS_PROXY:+HTTPS_PROXY="$HTTPS_PROXY"} ${no_proxy:+no_proxy="$no_proxy"} \
-      "$TOOLS/cargo-deny" --format json --config "$DENY_CFG" --locked check $DENY_CHECKS) > /dev/null 2> "$raw" || drc=$?
+      "$TOOLS/cargo-deny" --format json --config "$DENY_CFG" --manifest-path "$d/Cargo.toml" --locked check $DENY_CHECKS) > /dev/null 2> "$raw" || drc=$?
   rm -rf "$chome"
   case "$drc" in 0|1) ;; *) echo "cargo-deny failed (exit $drc):"; tail -n 20 "$raw"; rm -f "$raw"; return 2 ;; esac
   python3 - "$raw" "$drc" > "$out" <<'PY' || { echo "cargo-deny did not complete cleanly (exit $drc):"; tail -n 20 "$raw"; rm -f "$raw"; return 2; }
