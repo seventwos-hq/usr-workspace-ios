@@ -228,22 +228,45 @@ sandbox_init() { # call in the main shell (not in $(...)) so SANDBOX_ROOT persis
 # differ from the committed workspace). Symlinks/submodules not referenced by the Cargo graph are fine.
 validate_cargo_paths() { # tree-dir
   python3 - "$1" <<'PY'
-import os,sys,fnmatch
+import os,sys,fnmatch,re
 try: import tomllib
 except ImportError: sys.exit("python tomllib unavailable (fail closed)")
 root=os.path.realpath(sys.argv[1])
 sk_file=os.path.join(root,".skipped-entries")
-skipped=[x for x in open(sk_file).read().split("\n") if x]
+skipped=[os.fsdecode(x) for x in open(sk_file,"rb").read().split(b"\0") if x]   # NUL-delimited: git paths may contain newlines
 os.remove(sk_file)
+skipset=set(skipped)
+GLOB=re.compile(r"[*?\[\]]")
+BUDGET=[5_000_000]   # bound total glob-matching work; exceeding it fails closed instead of running unbounded
+memo={}
 for s in skipped:
     if os.path.basename(s) in ("Cargo.toml","Cargo.lock","deny.toml","config","config.toml","rust-toolchain","rust-toolchain.toml"):
         sys.exit("symlink/submodule entry is a Cargo/toolchain file: "+s)
-def overlap(ref):   # a skipped entry that IS the referenced path or an ancestor of it hides part of the graph
+def prefix_match(ss,rs):   # True if skipped path ss equals, or is an ancestor of, some path the Cargo glob rs can match (** = 0..n dirs)
+    seen={}
+    def m(i,j):
+        BUDGET[0]-=1
+        if BUDGET[0]<0: sys.exit("cargo path validation work budget exceeded (fail closed)")
+        if i==len(ss): return True
+        if j==len(rs): return False
+        k=(i,j)
+        if k in seen: return seen[k]
+        if rs[j]=="**": r=m(i,j+1) or m(i+1,j)
+        else: r=fnmatch.fnmatchcase(ss[i],rs[j]) and m(i+1,j+1)
+        seen[k]=r; return r
+    return m(0,0)
+def overlap(ref):   # a skipped entry that IS the referenced path or an ancestor of it (or of any glob match) hides part of the graph
+    if ref in memo: return memo[ref]
     rs=ref.split("/")
-    for s in skipped:
-        ss=s.split("/")
-        if len(ss)<=len(rs) and all(fnmatch.fnmatchcase(ss[i],rs[i]) for i in range(len(ss))): return s
-    return None
+    hit=None
+    if not GLOB.search(ref):   # literal: O(depth) ancestor lookups in a set
+        for i in range(1,len(rs)+1):
+            a="/".join(rs[:i])
+            if a in skipset: hit=a; break
+    else:
+        for s in skipped:
+            if prefix_match(s.split("/"),rs): hit=s; break
+    memo[ref]=hit; return hit
 def check(mdir,ref,what):
     if not isinstance(ref,str) or ref=="": sys.exit("bad path value for "+what)
     if os.path.isabs(ref) or "\\" in ref: sys.exit(what+" uses an absolute/odd path: "+ref)
@@ -306,7 +329,7 @@ for e in entries(sys.stdin.buffer):
     if len(path)>MAXPATH or path.startswith(b"/") or b".." in parts or b"" in parts: sys.exit("unsafe path in tree")
     if typ!=b"blob" or mode not in (b"100644",b"100755"):
         # symlinks/submodules are never materialized; they are recorded and checked against the Cargo graph by validate_cargo_paths
-        skipped.append(path.decode(errors="replace")); continue
+        skipped.append(path); continue
     p.stdin.write(sha+b"\n"); p.stdin.flush()
     h=p.stdout.readline().split()
     if len(h)!=3 or h[1]!=b"blob": sys.exit("cat-file failed")
@@ -324,9 +347,9 @@ for e in entries(sys.stdin.buffer):
     if p.stdout.read(1)!=b"\n": sys.exit("bad cat-file batch terminator")
 p.stdin.close()
 if p.wait()!=0: sys.exit("cat-file exited non-zero")
-open(os.path.join(dest,".skipped-entries"),"w").write("\n".join(skipped))   # consumed and removed by validate_cargo_paths
+open(os.path.join(dest,".skipped-entries"),"wb").write(b"\0".join(skipped))   # consumed and removed by validate_cargo_paths
 ' "$rev" "$d" || { echo "cannot materialize $rev (fail closed)" >&2; return 2; }
-  validate_cargo_paths "$d" || { echo "cargo manifest path validation failed for $rev (fail closed)" >&2; return 2; }
+  timeout 300 bash -c "$(declare -f validate_cargo_paths); validate_cargo_paths \"\$1\"" _ "$d" || { echo "cargo manifest path validation failed for $rev (fail closed)" >&2; return 2; }
   find "$d" -type l -delete || return 2
   find "$d" -depth \( -name .cargo -o -name rust-toolchain -o -name rust-toolchain.toml \) -exec rm -rf {} + || return 2
   if [ -n "$(find "$d" \( -type l -o -name .cargo -o -name 'rust-toolchain*' \) -print -quit)" ]; then echo "sanitizing $rev failed (fail closed)" >&2; return 2; fi
