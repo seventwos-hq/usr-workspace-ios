@@ -1,0 +1,29 @@
+name: disclosure
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  disclosure:
+    runs-on: dev-vm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: git config --global --add safe.directory "$PWD"
+      - name: Check pull request text
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+          DISCLOSURE_DENYLIST: ${{ secrets.DISCLOSURE_DENYLIST }}
+        run: |
+          git fetch --no-tags origin "+refs/heads/${PR_BASE}:refs/remotes/origin/${PR_BASE}"
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr_body.txt"
+          python3 .forgejo/scripts/disclosure_check.py \
+            --title "$PR_TITLE" \
+            --body-file "$RUNNER_TEMP/pr_body.txt" \
+            --branch "$PR_BRANCH" \
+            --range "origin/${PR_BASE}..HEAD"
