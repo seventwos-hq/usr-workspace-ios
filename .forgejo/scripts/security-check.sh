@@ -23,7 +23,8 @@ esac
 
 # Fresh private per-run tools dir: a pre-existing/planted executable is never trusted; every binary is downloaded and checksum-verified in this run.
 TOOLS="$(mktemp -d "${RUNNER_TEMP:-/tmp}/sec-tools.XXXXXX")"
-trap 'rm -rf "$TOOLS"' EXIT
+SANDBOX_ROOT=""
+trap 'rm -rf "$TOOLS" ${SANDBOX_ROOT:+"$SANDBOX_ROOT"}' EXIT
 ZERO=0000000000000000000000000000000000000000
 
 fetch() { # url sha256 out
@@ -180,10 +181,19 @@ osv_diff() {
   local base="$1" files="$2" w bad=0 f new
   w="$(mktemp -d "$TOOLS/osv.XXXXXX")"
   while IFS= read -r -d '' f; do
-    [ -f "$f" ] || continue   # lockfile deleted
+    # Lockfiles are read from the HEAD_SHA tree (mode + blob), never from the checkout: a symlink, submodule or other
+    # non-regular entry fails closed; a path absent from HEAD_SHA is a genuine deletion.
+    local ent mode
+    ent="$(git ls-tree -z "$HEAD_SHA" -- "$f" | tr -d '\0')" || { echo "git ls-tree failed for $f (fail closed)"; rm -rf "$w"; return 2; }
+    [ -n "$ent" ] || continue   # lockfile deleted in HEAD_SHA
+    mode="${ent%% *}"
+    case "$mode" in 100644|100755) ;; *) echo "lockfile $f has unsupported git mode $mode (symlink/submodule; fail closed)"; rm -rf "$w"; return 2 ;; esac
     mkdir -p -- "$w/head/$(dirname -- "$f")" "$w/base/$(dirname -- "$f")"
-    cp -- "$f" "$w/head/$f"
-    git show "${base}:${f}" > "$w/base/$f" 2>/dev/null || rm -f "$w/base/$f"
+    git cat-file blob "${HEAD_SHA}:${f}" > "$w/head/$f" || { echo "cannot read $f from $HEAD_SHA (fail closed)"; rm -rf "$w"; return 2; }
+    rm -f "$w/base/$f"
+    if [ "$(git ls-tree "$base" -- "$f" 2>/dev/null | cut -c1-6)" = 100644 ] || [ "$(git ls-tree "$base" -- "$f" 2>/dev/null | cut -c1-6)" = 100755 ]; then
+      git cat-file blob "${base}:${f}" > "$w/base/$f" || { echo "cannot read $f from base (fail closed)"; rm -rf "$w"; return 2; }
+    fi
     osv_scan "$w/head" "$f" "$w/h.json" strict || { rm -rf "$w"; return 2; }
     if [ -s "$w/base/$f" ]; then osv_scan "$w/base" "$f" "$w/b.json" || { rm -rf "$w"; return 2; }; else echo '{"results":[]}' > "$w/b.json"; fi
     osv_ids "$w/h.json" > "$w/h.raw" || { echo "failed to parse osv-scanner output for $f"; rm -rf "$w"; return 2; }
@@ -197,11 +207,60 @@ osv_diff() {
   return $bad
 }
 
+# Copy a git revision's tree (blobs only, no .git, no credentials) into a fresh dir OUTSIDE the checkout, then strip
+# everything that lets the tree steer Cargo/rustup into running code: .cargo/ config dirs, rust-toolchain(.toml)
+# overrides and all symlinks. cargo-deny/cargo metadata only ever runs inside such a copy.
+sandbox_init() { # call in the main shell (not in $(...)) so SANDBOX_ROOT persists and the EXIT trap removes it
+  if [ -z "$SANDBOX_ROOT" ]; then
+    SANDBOX_ROOT="$(mktemp -d /tmp/sec-cargo.XXXXXX)" || return 2
+    local cur; cur="$(dirname "$SANDBOX_ROOT")"
+    while :; do   # no ancestor .cargo config may exist above the sandbox (Cargo searches every parent dir)
+      if [ -e "$cur/.cargo/config" ] || [ -e "$cur/.cargo/config.toml" ]; then echo "cargo config at $cur/.cargo above sandbox (fail closed)" >&2; return 2; fi
+      [ "$cur" = / ] && break; cur="$(dirname "$cur")"
+    done
+  fi
+}
+materialize_tree() { # rev -> prints dir
+  local rev="$1" d
+  [ -n "$SANDBOX_ROOT" ] || return 2
+  d="$(mktemp -d "$SANDBOX_ROOT/tree.XXXXXX")" || return 2
+  git archive --format=tar "$rev" | tar -x -C "$d" -f - || { echo "cannot materialize $rev (fail closed)" >&2; return 2; }
+  find "$d" -type l -delete || return 2
+  find "$d" -depth \( -name .cargo -o -name rust-toolchain -o -name rust-toolchain.toml \) -exec rm -rf {} + || return 2
+  if [ -n "$(find "$d" \( -type l -o -name .cargo -o -name 'rust-toolchain*' \) -print -quit)" ]; then echo "sanitizing $rev failed (fail closed)" >&2; return 2; fi
+  printf '%s\n' "$d"
+}
+
+# Concrete, trusted cargo/rustc binaries: resolved from the runner's stable toolchain BEFORE entering any PR-derived
+# directory, so rustup never reads a checkout toolchain override and PATH lookup cannot pick a tree-supplied binary.
+trusted_toolchain() {
+  [ -n "${TRUSTED_CARGO:-}" ] && return 0
+  if command -v rustup >/dev/null 2>&1; then
+    TRUSTED_CARGO="$(cd / && rustup which --toolchain stable cargo)" && TRUSTED_RUSTC="$(cd / && rustup which --toolchain stable rustc)" \
+      || { echo "cannot resolve trusted stable toolchain via rustup (fail closed)"; return 2; }
+  else
+    TRUSTED_CARGO="$(cd / && command -v cargo)" && TRUSTED_RUSTC="$(cd / && command -v rustc)" || { echo "cargo/rustc not found (fail closed)"; return 2; }
+  fi
+  [ -x "$TRUSTED_CARGO" ] && [ -x "$TRUSTED_RUSTC" ] || { echo "trusted cargo/rustc not executable (fail closed)"; return 2; }
+}
+
 deny_findings() { # dir out ; returns 2 when cargo-deny did not complete (no summary = operational failure)
   local d="$1" out="$2" raw drc=0
   raw="$(mktemp "$TOOLS/deny.XXXXXX")"
-  # --config is a top-level flag (before `check`) in cargo-deny 0.20. cargo-deny exits non-zero when it reports errors; completion is judged by the JSON summary below
-  (cd "$d" && "$TOOLS/cargo-deny" --format json --config "$DENY_CFG" check $DENY_CHECKS) > /dev/null 2> "$raw" || drc=$?
+  # $d is a sanitized git-archive copy (see materialize_tree): no .cargo config, no toolchain override, no symlinks, no
+  # .git. cargo-deny runs with an empty env, a throwaway CARGO_HOME, concrete trusted cargo/rustc (CARGO/RUSTC, PATH
+  # limited to their dir + /usr/bin:/bin) and --locked, so the committed Cargo.lock is checked as-is (a stale or
+  # missing lockfile fails instead of being re-resolved).
+  local chome
+  trusted_toolchain || { rm -f "$raw"; return 2; }
+  chome="$(mktemp -d "$SANDBOX_ROOT/cargohome.XXXXXX")" || { rm -f "$raw"; return 2; }
+  # --config/--locked are top-level flags (before `check`) in cargo-deny 0.20. cargo-deny exits non-zero when it reports errors; completion is judged by the JSON summary below
+  (cd "$d" && env -i PATH="$(dirname "$TRUSTED_CARGO"):/usr/bin:/bin" LANG=C HOME="$chome" CARGO_HOME="$chome" \
+      CARGO="$TRUSTED_CARGO" RUSTC="$TRUSTED_RUSTC" \
+      ${SSL_CERT_FILE:+SSL_CERT_FILE="$SSL_CERT_FILE"} ${SSL_CERT_DIR:+SSL_CERT_DIR="$SSL_CERT_DIR"} \
+      ${https_proxy:+https_proxy="$https_proxy"} ${HTTPS_PROXY:+HTTPS_PROXY="$HTTPS_PROXY"} ${no_proxy:+no_proxy="$no_proxy"} \
+      "$TOOLS/cargo-deny" --format json --config "$DENY_CFG" --locked check $DENY_CHECKS) > /dev/null 2> "$raw" || drc=$?
+  rm -rf "$chome"
   case "$drc" in 0|1) ;; *) echo "cargo-deny failed (exit $drc):"; tail -n 20 "$raw"; rm -f "$raw"; return 2 ;; esac
   python3 - "$raw" "$drc" > "$out" <<'PY' || { echo "cargo-deny did not complete cleanly (exit $drc):"; tail -n 20 "$raw"; rm -f "$raw"; return 2; }
 import sys,json
@@ -274,14 +333,19 @@ allow-git = []
 TOML
   fi
   local hok=1 bexists=0 bok=0
-  deny_findings "$PWD/$dir" "$w/h.txt" > "$w/h.log" 2>&1 || hok=0
+  local htree btree
+  sandbox_init || { rm -rf "$w"; return 2; }
+  htree="$(materialize_tree "$HEAD_SHA")" || { rm -rf "$w"; return 2; }
+  deny_findings "$htree/$dir" "$w/h.txt" > "$w/h.log" 2>&1 || hok=0
   cat "$w/h.log"
-  if git worktree add --detach "$w/base" "$base" >/dev/null 2>&1 && [ -f "$w/base/$dir/Cargo.toml" ]; then
-    bexists=1; deny_findings "$w/base/$dir" "$w/b.txt" > "$w/b.log" 2>&1 && bok=1
+  local bman="$dir/Cargo.toml"; [ "$dir" = . ] && bman=Cargo.toml
+  if git cat-file -e "${base}:${bman}" 2>/dev/null; then
+    btree="$(materialize_tree "$base")" || { rm -rf "$w"; return 2; }
+    bexists=1; deny_findings "$btree/$dir" "$w/b.txt" > "$w/b.log" 2>&1 && bok=1
     cat "$w/b.log"
   fi
   [ "$bok" = 1 ] || { echo "base not scannable; empty baseline"; : > "$w/b.txt"; }
-  git worktree remove --force "$w/base" >/dev/null 2>&1 || true
+  rm -rf "$htree" ${btree:+"$btree"}
   if [ "$hok" = 0 ]; then
     # A nested project that already existed in the base and was ALREADY unscannable there (e.g. a fuzz crate that is
     # neither a workspace member nor excluded) cannot regress; skip it with a warning. Root, new, or previously
