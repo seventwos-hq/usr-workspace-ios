@@ -6,7 +6,7 @@ applyTo: "**"
 # Autonomous review and separation of duties
 
 Policy version: 1.0.0.
-Canonical source: [seventwos-app/agent-control-plane](https://github.com/seventwos-app/agent-control-plane/blob/main/.github/instructions/autonomous-review.instructions.md).
+This file mirrors the shared autonomous review guidance for this repository.
 Other organization repositories carry byte-identical mirrors, not independently maintained variants.
 
 ## Scope and authority

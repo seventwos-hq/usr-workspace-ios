@@ -1,5 +1,5 @@
 name: Bug report for Seventwos Workspace for iOS
-description: Report an issue with Seventwos Workspace for iOS. Please [check open issues](https://github.com/seventwos-app/usr-workspace-ios/issues) first, in case it has already been reported.
+description: Report an issue with Seventwos Workspace for iOS. Please [check open issues](https://github.com/seventwos-hq/usr-workspace-ios/issues) first, in case it has already been reported.
 labels: [T-Defect]
 body:
   - type: markdown
@@ -7,7 +7,7 @@ body:
       value: |
         Thanks for taking the time to fill out this bug report!
 
-        Please report security issues privately through [GitHub Security Advisories](https://github.com/seventwos-app/usr-workspace-ios/security/advisories/new).
+        Please report security issues privately through [GitHub Security Advisories](https://github.com/seventwos-hq/usr-workspace-ios/security/advisories/new).
   - type: textarea
     id: reproduction-steps
     attributes:

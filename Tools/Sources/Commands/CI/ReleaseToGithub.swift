@@ -3,7 +3,7 @@ import Foundation
 import Yams
 
 struct ReleaseToGitHub: AsyncParsableCommand {
-    private static let repository = "seventwos-app/usr-workspace-ios"
+    private static let repository = "seventwos-hq/usr-workspace-ios"
     
     static let configuration = CommandConfiguration(commandName: "release-to-github",
                                                     abstract: "Creates a GitHub release and updates CHANGES.md with generated release notes.")

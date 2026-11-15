@@ -2,7 +2,7 @@
   "schema_version": 1,
   "recorded_at": "2026-10-18T09:46:17Z",
   "fork": {
-    "repository": "seventwos-app/usr-workspace-ios",
+    "repository": "seventwos-hq/usr-workspace-ios",
     "default_branch": "develop",
     "develop_sha": "35f475851662c071b4481795802e827862d5dbf3",
     "head_sha": "dc18272f6b6e8865a45a59b66f97d769c27bc638",

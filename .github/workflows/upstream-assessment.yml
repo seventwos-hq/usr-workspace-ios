@@ -31,7 +31,7 @@ on:
         default: 734c0678fa2affe485746126458fca888639e608
         type: string
       fork_sha:
-        description: Immutable seventwos-app/usr-workspace-ios develop SHA used as the baseline
+        description: Immutable seventwos-hq/usr-workspace-ios develop SHA used as the baseline
         required: true
         default: 35f475851662c071b4481795802e827862d5dbf3
         type: string
