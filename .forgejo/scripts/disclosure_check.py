@@ -24,9 +24,11 @@ Allowances (to keep false positives low):
 File content (--content BASE): lines added between BASE and HEAD are checked
 for denylist terms and credentials only. Files under .forgejo/ are skipped,
 and terms listed in .forgejo/disclosure-allow.txt on BASE are exempt there.
+Files that are not plain UTF-8 are also scanned in every UTF-16/32 reading.
 With --content-warn, content hits are reported but do not fail the check.
 """
 import argparse
+import codecs
 import ipaddress
 import os
 import re
@@ -298,22 +300,83 @@ def content_allow(base):
     return compile_terms([l for l in lines if not l.lstrip().startswith("#")])
 
 
+WIDE_CODECS = tuple((enc, off) for enc, step in (("utf-16-le", 2), ("utf-16-be", 2),
+                                                 ("utf-32-le", 4), ("utf-32-be", 4))
+                    for off in range(step))
+
+
+def wide_decodings(raw):
+    """Every UTF-16/32 reading of a blob, both byte orders and every alignment.
+
+    Used for blobs that are not plain UTF-8 text. BOMs and NUL layouts are not
+    trusted to pick one encoding, so all readings are scanned.
+    """
+    for enc, off in WIDE_CODECS:
+        yield raw[off:].decode(enc, "replace")
+
+
+def blob_at_head(path):
+    kind = subprocess.run(("git", "cat-file", "-t", "HEAD:" + path), capture_output=True)
+    if kind.returncode != 0 or kind.stdout.strip() != b"blob":
+        return None  # e.g. a submodule
+    return subprocess.run(("git", "cat-file", "blob", "HEAD:" + path),
+                          check=True, capture_output=True).stdout
+
+
+def is_utf8_text(raw):
+    if b"\x00" in raw:
+        return False
+    try:
+        raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    return True
+
+
 def scan_content(base, deny):
-    """File names are never printed; files are numbered in `git diff --name-only BASE...HEAD` order."""
+    """File names are never printed; files are numbered in `git diff --name-only BASE...HEAD` order.
+
+    Added lines are scanned as-is and, when they contain NULs, with NULs removed.
+    Changed files that are not plain UTF-8 text are also read whole at HEAD and
+    scanned in every UTF-16/32 reading.
+    """
     allow = content_allow(base)
-    hits = []
+
+    def check(t):
+        found = set(find(t, None, only={"credential"}))
+        if deny is not None:
+            # an allowed term exempts a denied match only when it covers the whole match
+            found.update((m.start(), "denylist") for m in deny.finditer(t)
+                         if allow is None or not allow.fullmatch(m.group()))
+        return found
+
+    hits, seen = [], set()
+
+    def add(num, ln, found):
+        for col, cat in sorted(found):
+            h = "file %d line %d col %d: %s" % (num, ln, col + 1, cat)
+            if h not in seen:
+                seen.add(h)
+                hits.append(h)
+
+    done = set()
     for num, path, ln, text in added_lines(base):
         if path.startswith(".forgejo/"):
             continue
-        found = [(col, cat) for col, cat in find(text, None, only={"credential"})]
-        if deny is not None:
-            # an allowed term exempts a denied match only when it covers the whole match
-            found += [(m.start(), "denylist") for m in deny.finditer(text)
-                      if allow is None or not allow.fullmatch(m.group())]
-        for col, cat in sorted(found):
-            hits.append("file %d line %d col %d: %s" % (num, ln, col + 1, cat))
+        found = check(text)
+        if "\x00" in text:
+            found |= check(text.replace("\x00", ""))
+        add(num, ln, found)
+        if path in done:
+            continue
+        done.add(path)
+        raw = blob_at_head(path)
+        if raw is None or is_utf8_text(raw):
+            continue
+        for decoded in wide_decodings(raw):
+            for wln, line in enumerate(decoded.splitlines(), 1):
+                add(num, wln, check(line))
     return hits
-
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
