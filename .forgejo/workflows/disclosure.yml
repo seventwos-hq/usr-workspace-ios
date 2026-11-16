@@ -12,18 +12,34 @@ jobs:
         with:
           fetch-depth: 0
       - run: git config --global --add safe.directory "$PWD"
+      - name: Load checker from the base branch
+        env:
+          PR_BASE: ${{ github.base_ref || 'main' }}
+        run: |
+          git fetch --no-tags origin "+refs/heads/${PR_BASE}:refs/remotes/origin/${PR_BASE}"
+          if ! git show "origin/${PR_BASE}:.forgejo/scripts/disclosure_check.py" > "$RUNNER_TEMP/disclosure_check.py"; then
+            echo "error: checker not found on the base branch; failing closed until it is merged there" >&2
+            exit 1
+          fi
       - name: Check pull request text
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_BRANCH: ${{ github.event.pull_request.head.ref }}
-          PR_BASE: ${{ github.event.pull_request.base.ref }}
+          PR_BASE: ${{ github.base_ref || 'main' }}
           DISCLOSURE_DENYLIST: ${{ secrets.DISCLOSURE_DENYLIST }}
+          DISCLOSURE_DENYLIST_FILE: ""
         run: |
-          git fetch --no-tags origin "+refs/heads/${PR_BASE}:refs/remotes/origin/${PR_BASE}"
           printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr_body.txt"
-          python3 .forgejo/scripts/disclosure_check.py \
+          # added file lines are reported as warnings only, once the base checker supports it
+          set --
+          if grep -q -- '--content-warn' "$RUNNER_TEMP/disclosure_check.py"; then
+            set -- --content "origin/${PR_BASE}" --content-warn
+          fi
+          # trusted copy from the base branch; the PR checkout is input only
+          python3 "$RUNNER_TEMP/disclosure_check.py" \
             --title "$PR_TITLE" \
             --body-file "$RUNNER_TEMP/pr_body.txt" \
             --branch "$PR_BRANCH" \
-            --range "origin/${PR_BASE}..HEAD"
+            --range "origin/${PR_BASE}..HEAD" \
+            "$@"
