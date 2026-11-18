@@ -153,7 +153,10 @@ run_deps() {
 
 osv_scan() { # dir lockfile-relpath out.json [strict] ; strict (head): no-packages is a failure, not an empty scan; fails closed on operational errors
   local rc=0
-  (cd "$1" && "$TOOLS/osv-scanner" scan source --format json -L "$2" > "$3") 2>"$3.err" || rc=$?
+  # Package.resolved has no -L type name; osv-scanner only picks the SwiftPM extractor when it is enabled explicitly.
+  local plug=()
+  case "$2" in Package.resolved|*/Package.resolved) plug=(--experimental-plugins swift/packageresolved) ;; esac
+  (cd "$1" && "$TOOLS/osv-scanner" scan source --format json ${plug[@]+"${plug[@]}"} -L "$2" > "$3") 2>"$3.err" || rc=$?
   case "$rc" in
     0|1) ;;                                   # 0 clean, 1 vulnerabilities found
     128) if [ "${4:-}" != strict ] && grep -qi 'no package sources found' "$3.err"; then echo '{"results":[]}' > "$3"; echo "warning: osv-scanner found no packages in $2"
