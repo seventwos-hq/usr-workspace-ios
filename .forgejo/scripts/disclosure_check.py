@@ -25,6 +25,7 @@ File content (--content BASE): lines added between BASE and HEAD are checked
 for denylist terms and credentials only. Files under .forgejo/ are skipped,
 and terms listed in .forgejo/disclosure-allow.txt on BASE are exempt there.
 Files that are not plain UTF-8 are also scanned in every UTF-16/32 reading.
+Files that are not plain UTF-8 are also scanned in every UTF-16/32 reading.
 With --content-warn, content hits are reported but do not fail the check.
 """
 import argparse
@@ -315,11 +316,34 @@ def wide_decodings(raw):
         yield raw[off:].decode(enc, "replace")
 
 
-def blob_at_head(path):
-    kind = subprocess.run(("git", "cat-file", "-t", "HEAD:" + path), capture_output=True)
-    if kind.returncode != 0 or kind.stdout.strip() != b"blob":
-        return None  # e.g. a submodule
-    return subprocess.run(("git", "cat-file", "blob", "HEAD:" + path),
+def changed_paths(base):
+    """Paths changed between base and HEAD (AMCT), as bytes, in `--name-only` order."""
+    out = subprocess.run(("git", "diff", "--name-only", "-z", "--no-renames", "--no-ext-diff",
+                          "--diff-filter=AMCT", base + "...HEAD"),
+                         check=True, capture_output=True).stdout
+    return [x for x in out.split(b"\0") if x]
+
+
+MAX_BLOB_BYTES = 5 * 1024 * 1024
+
+
+def blob_at_head(path, num=0):
+    """Blob bytes of a path (bytes) at HEAD; None for non-blobs such as submodules.
+
+    A failed lookup is an input error, never a reason to skip the file.
+    """
+    spec = b"HEAD:" + path
+    kind = subprocess.run(("git", "cat-file", "-t", spec), capture_output=True)
+    if kind.returncode != 0:
+        raise InputError("cannot look up changed file at HEAD")
+    if kind.stdout.strip() != b"blob":
+        return None
+    size = subprocess.run(("git", "cat-file", "-s", spec), capture_output=True)
+    if size.returncode != 0 or not size.stdout.strip().isdigit():
+        raise InputError("cannot determine size of changed file #%d at HEAD" % num)
+    if int(size.stdout) > MAX_BLOB_BYTES:
+        raise InputError("changed file #%d exceeds the %d byte read limit" % (num, MAX_BLOB_BYTES))
+    return subprocess.run(("git", "cat-file", "blob", spec),
                           check=True, capture_output=True).stdout
 
 
@@ -359,7 +383,6 @@ def scan_content(base, deny):
                 seen.add(h)
                 hits.append(h)
 
-    done = set()
     for num, path, ln, text in added_lines(base):
         if path.startswith(".forgejo/"):
             continue
@@ -367,16 +390,18 @@ def scan_content(base, deny):
         if "\x00" in text:
             found |= check(text.replace("\x00", ""))
         add(num, ln, found)
-        if path in done:
+    # whole-blob checks cover every changed file, including deletion-only edits
+    for num, bpath in enumerate(changed_paths(base), 1):
+        if bpath.startswith(b".forgejo/"):
             continue
-        done.add(path)
-        raw = blob_at_head(path)
+        raw = blob_at_head(bpath, num)
         if raw is None or is_utf8_text(raw):
             continue
         for decoded in wide_decodings(raw):
             for wln, line in enumerate(decoded.splitlines(), 1):
                 add(num, wln, check(line))
     return hits
+
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
