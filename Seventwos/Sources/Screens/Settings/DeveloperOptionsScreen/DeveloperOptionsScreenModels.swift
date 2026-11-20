@@ -6,6 +6,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import Combine
 import Foundation
 
 enum DeveloperOptionsScreenViewModelAction {
@@ -13,9 +14,8 @@ enum DeveloperOptionsScreenViewModelAction {
 }
 
 struct DeveloperOptionsScreenViewState: BindableState {
-    let appHooks: AppHooks
+    let screenHook: DeveloperOptionsScreenHookProtocol
     var storeSizes: [StoreSize]?
-    let shouldShowClearCache: Bool
     let isSignedIn: Bool
     
     var bindings: DeveloperOptionsScreenViewStateBindings
@@ -58,15 +58,18 @@ protocol DeveloperOptionsProtocol: AnyObject {
     var focusEventOnNotificationTap: Bool { get set }
     var automaticBackPaginationEnabled: Bool { get set }
     
-    var roomListActivityVisibility: RoomListActivityVisibility { get set }
-    var roomListNotificationCountEnabled: Bool { get set }
     var elementCallBaseURLOverride: URL? { get set }
     
     var fuzzyRoomListSearchEnabled: Bool { get set }
     var lowPriorityFilterEnabled: Bool { get set }
     var mentionsFilterEnabled: Bool { get set }
+    var prominentInvitesFilterEnabled: Bool { get set }
     
+    var viewSourceEnabled: Bool { get set }
     var linkPreviewsEnabled: Bool { get set }
+    var jumpToReadMarkerEnabled: Bool { get set }
+    var reactionCelebrationsEnabled: Bool { get set }
+    var imageDrawingEnabled: Bool { get set }
     
     var jumpToReadMarkerEnabled: Bool { get set }
     var messageMultiSelectEnabled: Bool { get set }
@@ -74,6 +77,14 @@ protocol DeveloperOptionsProtocol: AnyObject {
     var linkNewDeviceEnabled: Bool { get set }
     
     var globalSearchEnabled: Bool { get set }
+    
+    var multiAccountEnabled: Bool { get set }
+    var multiAccountEnabledPublisher: AnyPublisher<Bool, Never> { get }
+    var hasSeenMultiAccountAnnouncement: Bool { get set }
+    
+    var nativeCallEnabled: Bool { get set }
+    
+    var snowEnabled: Bool { get set }
 }
 
 extension AppSettings: DeveloperOptionsProtocol { }

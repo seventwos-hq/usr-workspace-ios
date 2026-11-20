@@ -6,8 +6,8 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-import Foundation
 @testable import Seventwos
+import Foundation
 import Testing
 
 @MainActor
@@ -169,6 +169,28 @@ struct NavigationSplitCoordinatorTests {
             
             navigationSplitCoordinator.setFullScreenCoverCoordinator(nil)
         }
+    }
+    
+    // MARK: - Stopping
+    
+    @Test
+    func stoppingTearsDownTheSidebarDetailAndEverythingPresentedOverThem() {
+        let sidebarCoordinator = StopTrackingCoordinator()
+        let detailCoordinator = StopTrackingCoordinator()
+        let sheetCoordinator = StopTrackingCoordinator()
+        let fullScreenCoverCoordinator = StopTrackingCoordinator()
+        
+        navigationSplitCoordinator.setSidebarCoordinator(sidebarCoordinator)
+        navigationSplitCoordinator.setDetailCoordinator(detailCoordinator)
+        navigationSplitCoordinator.setSheetCoordinator(sheetCoordinator)
+        navigationSplitCoordinator.setFullScreenCoverCoordinator(fullScreenCoverCoordinator)
+        
+        navigationSplitCoordinator.stop()
+        
+        #expect(sidebarCoordinator.didStop)
+        #expect(detailCoordinator.didStop)
+        #expect(sheetCoordinator.didStop)
+        #expect(fullScreenCoverCoordinator.didStop)
     }
     
     // MARK: - Advanced
@@ -347,4 +369,12 @@ private func assertCoordinatorsEqual(_ lhs: CoordinatorProtocol?, _ rhs: Coordin
 
 private class SomeTestCoordinator: CoordinatorProtocol {
     let id = UUID()
+}
+
+private class StopTrackingCoordinator: CoordinatorProtocol {
+    private(set) var didStop = false
+    
+    func stop() {
+        didStop = true
+    }
 }

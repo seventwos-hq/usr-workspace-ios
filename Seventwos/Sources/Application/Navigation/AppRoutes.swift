@@ -12,6 +12,8 @@ import MatrixRustSDK
 // MARK: - Routes
 
 enum AppRoute: Hashable {
+    /// The root of the authentication flow.
+    case authentication
     /// An account provisioning link generated externally.
     case accountProvisioningLink(AccountProvisioningParameters)
     /// An external callback used to complete login with OAuth. This is only used when authentication
@@ -43,7 +45,7 @@ enum AppRoute: Hashable {
     /// The profile of a matrix user (outside of a room).
     case userProfile(userID: String)
     /// An Element Call running in a particular room
-    case call(roomID: String, isVoiceCall: Bool)
+    case call(roomID: String, isVoiceCall: Bool, answeredFromCallKit: Bool)
     /// The settings screen.
     case settings
     /// The setting screen for key backup.

@@ -5,6 +5,7 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>org.seventwos.workspace.background.refresh</string>
+		<string>org.seventwos.workspace.background.search-backfill</string>
 	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
@@ -109,11 +110,29 @@
 			<key>UTTypeIdentifier</key>
 			<string>$(PILLS_UT_TYPE_IDENTIFIER)</string>
 		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Custom Emoticons</string>
+			<key>UTTypeIdentifier</key>
+			<string>$(EMOTICONS_UT_TYPE_IDENTIFIER)</string>
+		</dict>
 	</array>
 	<key>appGroupIdentifier</key>
 	<string>$(APP_GROUP_IDENTIFIER)</string>
 	<key>baseBundleIdentifier</key>
 	<string>$(BASE_BUNDLE_IDENTIFIER)</string>
+	<key>classicAppDeepLinkURL</key>
+	<string>$(CLASSIC_APP_DEEP_LINK_URL)</string>
+	<key>classicAppGroupIdentifier</key>
+	<string>$(CLASSIC_APP_GROUP_IDENTIFIER)</string>
+	<key>classicAppKeychainAccessGroupIdentifier</key>
+	<string>$(CLASSIC_APP_KEYCHAIN_ACCESS_GROUP_IDENTIFIER)</string>
+	<key>classicAppKeychainServiceIdentifier</key>
+	<string>$(CLASSIC_APP_KEYCHAIN_SERVICE_IDENTIFIER)</string>
 	<key>isNightlyBuild</key>
 	<string>$(IS_NIGHTLY_BUILD)</string>
 	<key>keychainAccessGroupIdentifier</key>

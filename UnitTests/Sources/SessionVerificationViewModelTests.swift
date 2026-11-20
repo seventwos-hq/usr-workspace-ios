@@ -7,8 +7,8 @@
 //
 
 import Combine
-import Foundation
 @testable import Seventwos
+import Foundation
 import Testing
 
 @MainActor
@@ -18,11 +18,10 @@ struct SessionVerificationViewModelTests {
     var sessionVerificationController: SessionVerificationControllerProxyMock!
     
     init() throws {
-        sessionVerificationController = SessionVerificationControllerProxyMock.configureMock()
+        sessionVerificationController = SessionVerificationControllerProxyMock.configureMock(requestDelay: .milliseconds(500))
         viewModel = SessionVerificationScreenViewModel(sessionVerificationControllerProxy: sessionVerificationController,
                                                        flow: .deviceInitiator,
-                                                       appSettings: .volatile(),
-                                                       mediaProvider: MediaProviderMock(.init()))
+                                                       userSession: UserSessionMock(.init()))
         context = viewModel.context
     }
     
@@ -112,12 +111,6 @@ struct SessionVerificationViewModelTests {
     
     private mutating func setupChallengeReceived() async throws {
         let actionsPublisher = sessionVerificationController.actions.delay(for: .seconds(0.1), scheduler: DispatchQueue.main)
-        let cancellable = actionsPublisher
-            .sink { [sessionVerificationController] action in
-                if case .acceptedVerificationRequest = action {
-                    Task { await sessionVerificationController?.startSasVerification() }
-                }
-            }
         
         let deferred = deferFulfillment(actionsPublisher,
                                         keyPath: \.self,
@@ -130,7 +123,5 @@ struct SessionVerificationViewModelTests {
         #expect(context.viewState.verificationState == .showingChallenge(emojis: SessionVerificationControllerProxyMock.emojis))
         #expect(sessionVerificationController.requestDeviceVerificationCallsCount == 1)
         #expect(sessionVerificationController.startSasVerificationCallsCount == 1)
-        
-        cancellable.cancel()
     }
 }

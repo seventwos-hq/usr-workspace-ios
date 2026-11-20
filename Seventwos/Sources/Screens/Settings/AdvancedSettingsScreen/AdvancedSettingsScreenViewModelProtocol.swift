@@ -1,13 +1,13 @@
 //
 // Copyright 2025 Element Creations Ltd.
-// Copyright 2022-2025 New Vector Ltd.
 //
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only.
 // Please see LICENSE files in the repository root for full details.
 //
 
 import Combine
 
-protocol AdvancedSettingsScreenViewModelProtocol {
-    var context: AdvancedSettingsScreenViewModelType.Context { get }
+protocol RoomThreadListScreenViewModelProtocol {
+    var actionsPublisher: AnyPublisher<RoomThreadListScreenViewModelAction, Never> { get }
+    var context: RoomThreadListScreenViewModelType.Context { get }
 }

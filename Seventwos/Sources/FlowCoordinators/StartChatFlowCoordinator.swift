@@ -215,8 +215,7 @@ class StartChatFlowCoordinator: FlowCoordinatorProtocol {
                                                                      userSession: flowParameters.userSession,
                                                                      appMediator: flowParameters.appMediator,
                                                                      analytics: flowParameters.analytics,
-                                                                     userIndicatorController: flowParameters.userIndicatorController,
-                                                                     appSettings: flowParameters.appSettings)
+                                                                     userIndicatorController: flowParameters.userIndicatorController)
         let coordinator = CreateRoomScreenCoordinator(parameters: createParameters)
         coordinator.actions.sink { [weak self] action in
             guard let self else { return }

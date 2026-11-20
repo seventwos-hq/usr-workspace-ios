@@ -7,9 +7,9 @@
 //
 
 import Combine
+@testable import Seventwos
 import Foundation
 import MatrixRustSDK
-@testable import Seventwos
 import Testing
 import WysiwygComposer
 
@@ -19,6 +19,7 @@ final class ComposerToolbarViewModelTests {
     private var viewModel: ComposerToolbarViewModel!
     private var completionSuggestionServiceMock: CompletionSuggestionServiceMock!
     private var draftServiceMock: ComposerDraftServiceMock!
+    private var cancellables = Set<AnyCancellable>()
     
     init() {
         setUpViewModel()
@@ -83,14 +84,14 @@ final class ComposerToolbarViewModelTests {
                                              .init(suggestionType: .user(.init(id: "@user_mention_2:matrix.org", displayName: "User 2", avatarURL: nil)), range: .init(), rawSuggestionText: "")]
         let mockCompletionSuggestionService = CompletionSuggestionServiceMock(configuration: .init(suggestions: suggestions))
         
-        let appSettings = AppSettings.volatile()
+        let userSettings = UserSettings.mock()
         
         viewModel = ComposerToolbarViewModel(roomProxy: JoinedRoomProxyMock(.init()),
                                              wysiwygViewModel: wysiwygViewModel,
                                              completionSuggestionService: mockCompletionSuggestionService,
                                              mediaProvider: MediaProviderMock(.init()),
                                              mentionDisplayHelper: ComposerMentionDisplayHelper.mock,
-                                             appSettings: appSettings,
+                                             userSettings: userSettings,
                                              analyticsService: AnalyticsServiceMock(.init()),
                                              composerDraftService: draftServiceMock)
         
@@ -547,6 +548,106 @@ final class ComposerToolbarViewModelTests {
     }
     
     @Test
+    func sendingUnchangedPlainTextEditCancelsTheEdit() {
+        viewModel.context.composerFormattingEnabled = false
+        let mode: ComposerMode = .edit(originalEventOrTransactionID: .eventID("mock"), type: .default)
+        viewModel.process(timelineAction: .setMode(mode: mode))
+        viewModel.process(timelineAction: .setText(plainText: "Hello world!", htmlText: nil))
+        
+        let sentMessages = collectSentMessages()
+        viewModel.process(viewAction: .sendMessage)
+        
+        #expect(sentMessages.value.isEmpty)
+        #expect(viewModel.state.composerMode == .default)
+        #expect(viewModel.context.plainComposerText.string.isEmpty)
+    }
+    
+    @Test
+    func sendingUnchangedRichTextEditCancelsTheEdit() {
+        viewModel.context.composerFormattingEnabled = true
+        let mode: ComposerMode = .edit(originalEventOrTransactionID: .eventID("mock"), type: .default)
+        viewModel.process(timelineAction: .setMode(mode: mode))
+        viewModel.process(timelineAction: .setText(plainText: "Hello **world**!", htmlText: "Hello <strong>world</strong>!"))
+        viewModel.state.composerEmpty = false
+        
+        let sentMessages = collectSentMessages()
+        viewModel.process(viewAction: .sendMessage)
+        
+        #expect(sentMessages.value.isEmpty)
+        #expect(viewModel.state.composerMode == .default)
+        #expect(wysiwygViewModel.content.markdown.isEmpty)
+    }
+    
+    @Test
+    func sendingUnchangedEditRestoresTheVolatileDraft() {
+        viewModel.context.composerFormattingEnabled = false
+        viewModel.context.plainComposerText = .init(string: "Work in progress")
+        let mode: ComposerMode = .edit(originalEventOrTransactionID: .eventID("mock"), type: .default)
+        viewModel.process(timelineAction: .setMode(mode: mode))
+        viewModel.process(timelineAction: .setText(plainText: "Hello world!", htmlText: nil))
+        draftServiceMock.loadVolatileDraftReturnValue = .init(plainText: "Work in progress", htmlText: nil, draftType: .newMessage)
+        
+        let sentMessages = collectSentMessages()
+        viewModel.process(viewAction: .sendMessage)
+        
+        #expect(sentMessages.value.isEmpty)
+        #expect(viewModel.state.composerMode == .default)
+        #expect(viewModel.context.plainComposerText.string == "Work in progress")
+        #expect(draftServiceMock.clearVolatileDraftCallsCount == 1)
+    }
+    
+    @Test
+    func sendingUnchangedCaptionEditCancelsTheEdit() {
+        viewModel.context.composerFormattingEnabled = false
+        let mode: ComposerMode = .edit(originalEventOrTransactionID: .eventID("mock"), type: .editCaption)
+        viewModel.process(timelineAction: .setMode(mode: mode))
+        viewModel.process(timelineAction: .setText(plainText: "A caption", htmlText: nil))
+        
+        let sentMessages = collectSentMessages()
+        viewModel.process(viewAction: .sendMessage)
+        
+        #expect(sentMessages.value.isEmpty)
+        #expect(viewModel.state.composerMode == .default)
+    }
+    
+    @Test
+    func sendingChangedEditSendsTheEdit() async throws {
+        viewModel.context.composerFormattingEnabled = false
+        let mode: ComposerMode = .edit(originalEventOrTransactionID: .eventID("mock"), type: .default)
+        viewModel.process(timelineAction: .setMode(mode: mode))
+        viewModel.process(timelineAction: .setText(plainText: "Hello world!", htmlText: nil))
+        viewModel.context.plainComposerText = .init(string: "Hello world, edited!")
+        
+        let deferred = deferFulfillment(viewModel.actions) { action in
+            guard case let .sendMessage(plainText, _, sentMode, _) = action else { return false }
+            return plainText == "Hello world, edited!" && sentMode == mode
+        }
+        viewModel.process(viewAction: .sendMessage)
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    func sendingUnchangedEditAfterCancellingAndEditingAgainSendsTheEdit() async throws {
+        // Editing a different message must reset the remembered original content.
+        viewModel.context.composerFormattingEnabled = false
+        viewModel.process(timelineAction: .setMode(mode: .edit(originalEventOrTransactionID: .eventID("first"), type: .default)))
+        viewModel.process(timelineAction: .setText(plainText: "Hello world!", htmlText: nil))
+        viewModel.process(viewAction: .cancelEdit)
+        
+        let mode: ComposerMode = .edit(originalEventOrTransactionID: .eventID("second"), type: .default)
+        viewModel.process(timelineAction: .setMode(mode: mode))
+        viewModel.process(timelineAction: .setText(plainText: "Something else", htmlText: nil))
+        viewModel.context.plainComposerText = .init(string: "Hello world!")
+        
+        let deferred = deferFulfillment(viewModel.actions) { action in
+            guard case let .sendMessage(plainText, _, sentMode, _) = action else { return false }
+            return plainText == "Hello world!" && sentMode == mode
+        }
+        viewModel.process(viewAction: .sendMessage)
+        try await deferred.fulfill()
+    }
+    
+    @Test
     func restoreVolatileDraftWhenClearing() async {
         await waitForConfirmation("Volatile draft loaded and cleared", expectedCount: 2) { confirmation in
             draftServiceMock.loadVolatileDraftClosure = {
@@ -702,14 +803,14 @@ final class ComposerToolbarViewModelTests {
         let mockSubject = CurrentValueSubject<[IdentityStatusChange], Never>([])
         roomProxyMock.identityStatusChangesPublisher = mockSubject.asCurrentValuePublisher()
         
-        let appSettings = AppSettings.volatile()
+        let userSettings = UserSettings.mock()
         
         viewModel = ComposerToolbarViewModel(roomProxy: roomProxyMock,
                                              wysiwygViewModel: wysiwygViewModel,
                                              completionSuggestionService: mockCompletionSuggestionService,
                                              mediaProvider: MediaProviderMock(.init()),
                                              mentionDisplayHelper: ComposerMentionDisplayHelper.mock,
-                                             appSettings: appSettings,
+                                             userSettings: userSettings,
                                              analyticsService: AnalyticsServiceMock(.init()),
                                              composerDraftService: draftServiceMock)
         
@@ -745,14 +846,14 @@ final class ComposerToolbarViewModelTests {
         
         roomProxyMock.identityStatusChangesPublisher = mockSubject.asCurrentValuePublisher()
         
-        let appSettings = AppSettings.volatile()
+        let userSettings = UserSettings.mock()
         
         viewModel = ComposerToolbarViewModel(roomProxy: roomProxyMock,
                                              wysiwygViewModel: wysiwygViewModel,
                                              completionSuggestionService: mockCompletionSuggestionService,
                                              mediaProvider: MediaProviderMock(.init()),
                                              mentionDisplayHelper: ComposerMentionDisplayHelper.mock,
-                                             appSettings: appSettings,
+                                             userSettings: userSettings,
                                              analyticsService: AnalyticsServiceMock(.init()),
                                              composerDraftService: draftServiceMock)
         
@@ -764,7 +865,7 @@ final class ComposerToolbarViewModelTests {
         try await fulfillment.fulfill()
         
         // There are 2 violations, ensure that resolving the first one is not enough.
-        let failure = deferFailure(viewModel.context.$viewState, timeout: .seconds(1), message: "Composer should still be disabled") { $0.canSend == true }
+        let failure = deferFailure(viewModel.context.$viewState, timeout: .milliseconds(300), message: "Composer should still be disabled") { $0.canSend == true }
         mockSubject.send([IdentityStatusChange(userId: "@alice:localhost", changedTo: .pinned)])
         try await failure.fulfill()
         
@@ -785,14 +886,14 @@ final class ComposerToolbarViewModelTests {
         }
         
         roomProxyMock.identityStatusChangesPublisher = CurrentValueSubject([IdentityStatusChange(userId: "@alice:localhost", changedTo: .pinViolation)]).asCurrentValuePublisher()
-        let appSettings = AppSettings.volatile()
+        let userSettings = UserSettings.mock()
         
         viewModel = ComposerToolbarViewModel(roomProxy: roomProxyMock,
                                              wysiwygViewModel: wysiwygViewModel,
                                              completionSuggestionService: mockCompletionSuggestionService,
                                              mediaProvider: MediaProviderMock(.init()),
                                              mentionDisplayHelper: ComposerMentionDisplayHelper.mock,
-                                             appSettings: appSettings,
+                                             userSettings: userSettings,
                                              analyticsService: AnalyticsServiceMock(.init()),
                                              composerDraftService: draftServiceMock)
         
@@ -800,7 +901,163 @@ final class ComposerToolbarViewModelTests {
         try await deferred.fulfill()
     }
     
+    // MARK: - Voice message replies
+    
+    @Test
+    func voiceMessageIsSentAsReply() {
+        viewModel.process(timelineAction: .setMode(mode: replyMode))
+        viewModel.process(timelineAction: .setMode(mode: .recordVoiceMessage(state: AudioRecorderState())))
+        viewModel.process(timelineAction: .setMode(mode: voicePreviewMode(isUploading: false)))
+        
+        var sentReplyEventID: String?
+        viewModel.actions
+            .sink { action in
+                if case .voiceMessage(.send(let inReplyToEventID)) = action {
+                    sentReplyEventID = inReplyToEventID
+                }
+            }
+            .store(in: &cancellables)
+        viewModel.process(viewAction: .sendMessage)
+        
+        #expect(sentReplyEventID == "testID")
+    }
+    
+    @Test
+    func discardingVoiceMessageRestoresReply() {
+        viewModel.process(timelineAction: .setMode(mode: replyMode))
+        viewModel.process(timelineAction: .setMode(mode: .recordVoiceMessage(state: AudioRecorderState())))
+        #expect(viewModel.state.voiceMessageReply == replyMode.reply)
+        
+        viewModel.process(timelineAction: .setMode(mode: .default))
+        #expect(viewModel.state.composerMode == replyMode)
+        #expect(viewModel.state.voiceMessageReply == nil)
+    }
+    
+    @Test
+    func sendingVoiceMessageClearsReply() {
+        viewModel.process(timelineAction: .setMode(mode: replyMode))
+        viewModel.process(timelineAction: .setMode(mode: .recordVoiceMessage(state: AudioRecorderState())))
+        viewModel.process(timelineAction: .setMode(mode: voicePreviewMode(isUploading: true)))
+        
+        viewModel.process(timelineAction: .setMode(mode: .default))
+        #expect(viewModel.state.composerMode == .default)
+        #expect(viewModel.state.voiceMessageReply == nil)
+    }
+    
+    @Test
+    func cancellingReplyKeepsVoiceMessage() {
+        viewModel.process(timelineAction: .setMode(mode: replyMode))
+        let recordMode = ComposerMode.recordVoiceMessage(state: AudioRecorderState())
+        viewModel.process(timelineAction: .setMode(mode: recordMode))
+        
+        viewModel.process(viewAction: .cancelReply)
+        #expect(viewModel.state.composerMode == recordMode)
+        #expect(viewModel.state.voiceMessageReply == nil)
+    }
+    
+    @Test
+    func replyingToAnotherMessageKeepsVoiceMessage() {
+        viewModel.process(timelineAction: .setMode(mode: replyMode))
+        viewModel.process(timelineAction: .setMode(mode: .recordVoiceMessage(state: AudioRecorderState())))
+        let previewMode = voicePreviewMode(isUploading: false)
+        viewModel.process(timelineAction: .setMode(mode: previewMode))
+        
+        let otherReplyMode = ComposerMode.reply(eventID: "otherID", replyDetails: .loading(eventID: "otherID"), isThread: false)
+        viewModel.process(timelineAction: .setMode(mode: otherReplyMode))
+        #expect(viewModel.state.composerMode == previewMode)
+        #expect(viewModel.state.voiceMessageReply == otherReplyMode.reply)
+    }
+    
+    @Test
+    func editingWhileComposingVoiceMessageDropsStoredReply() {
+        viewModel.process(timelineAction: .setMode(mode: replyMode))
+        viewModel.process(timelineAction: .setMode(mode: .recordVoiceMessage(state: AudioRecorderState())))
+        
+        viewModel.process(timelineAction: .setMode(mode: .edit(originalEventOrTransactionID: .eventID("editID"), type: .default)))
+        #expect(viewModel.state.voiceMessageReply == nil)
+    }
+    
+    @Test
+    func discardingVoiceMessageDoesNotFocusComposer() {
+        viewModel.process(timelineAction: .setMode(mode: replyMode))
+        viewModel.process(timelineAction: .setMode(mode: .recordVoiceMessage(state: AudioRecorderState())))
+        viewModel.context.composerFocused = false
+        
+        viewModel.process(timelineAction: .setMode(mode: .default))
+        #expect(viewModel.state.composerMode == replyMode)
+        #expect(!viewModel.context.composerFocused)
+    }
+    
+    @Test
+    func loadingReplyFinishesWhileRecordingVoiceMessage() async throws {
+        let loadedReply = TimelineItemReplyDetails.loaded(sender: .init(id: "userID"),
+                                                          eventID: "testID",
+                                                          eventContent: .message(.text(.init(body: "Reply text"))))
+        draftServiceMock.loadDraftClosure = {
+            .success(.init(plainText: "", htmlText: nil, draftType: .reply(eventID: "testID")))
+        }
+        draftServiceMock.getReplyEventIDClosure = { _ in
+            try? await Task.sleep(for: .milliseconds(100))
+            return .success(.init(details: loadedReply, isThreaded: false))
+        }
+        await viewModel.loadDraft()
+        
+        let recordMode = ComposerMode.recordVoiceMessage(state: AudioRecorderState())
+        let deferredReplyLoaded = deferFulfillment(viewModel.context.$viewState) {
+            $0.voiceMessageReply == .init(eventID: "testID", replyDetails: loadedReply, isThread: false)
+        }
+        viewModel.process(timelineAction: .setMode(mode: recordMode))
+        
+        try await deferredReplyLoaded.fulfill()
+        #expect(viewModel.state.composerMode == recordMode)
+    }
+    
+    @Test
+    func saveDraftWhileRecordingVoiceMessageKeepsReply() async throws {
+        viewModel.context.composerFormattingEnabled = false
+        viewModel.process(timelineAction: .setMode(mode: replyMode))
+        viewModel.process(timelineAction: .setMode(mode: .recordVoiceMessage(state: AudioRecorderState())))
+        
+        var capturedDraft: ComposerDraftProxy?
+        await waitForConfirmation("Save draft") { confirmation in
+            draftServiceMock.saveDraftClosure = { draft in
+                capturedDraft = draft
+                confirmation()
+                return .success(())
+            }
+            viewModel.saveDraft()
+        }
+        
+        let draft = try #require(capturedDraft)
+        #expect(draft.draftType == .reply(eventID: "testID"))
+        #expect(!draftServiceMock.clearDraftCalled)
+    }
+    
     // MARK: - Helpers
+    
+    private let replyMode = ComposerMode.reply(eventID: "testID",
+                                               replyDetails: .loaded(sender: .init(id: ""),
+                                                                     eventID: "testID",
+                                                                     eventContent: .message(.text(.init(body: "reply text")))),
+                                               isThread: false)
+    
+    private func voicePreviewMode(isUploading: Bool) -> ComposerMode {
+        .previewVoiceMessage(state: AudioPlayerState(id: .recorderPreview, title: L10n.commonVoiceMessage, duration: 10.0),
+                             waveform: .data([1.0]),
+                             isUploading: isUploading)
+    }
+    
+    private func collectSentMessages() -> CurrentValueSubject<[ComposerToolbarViewModelAction], Never> {
+        let subject = CurrentValueSubject<[ComposerToolbarViewModelAction], Never>([])
+        viewModel.actions
+            .filter { action in
+                guard case .sendMessage = action else { return false }
+                return true
+            }
+            .sink { subject.value.append($0) }
+            .store(in: &cancellables)
+        return subject
+    }
     
     private func setUpViewModel(initialText: String? = nil, loadDraftClosure: (() async -> Result<ComposerDraftProxy?, ComposerDraftServiceError>)? = nil) {
         wysiwygViewModel = WysiwygComposerViewModel()
@@ -810,7 +1067,7 @@ final class ComposerToolbarViewModelTests {
             draftServiceMock.loadDraftClosure = loadDraftClosure
         }
         
-        let appSettings = AppSettings.volatile()
+        let userSettings = UserSettings.mock()
         
         viewModel = ComposerToolbarViewModel(initialText: initialText,
                                              roomProxy: JoinedRoomProxyMock(.init()),
@@ -818,7 +1075,7 @@ final class ComposerToolbarViewModelTests {
                                              completionSuggestionService: completionSuggestionServiceMock,
                                              mediaProvider: MediaProviderMock(.init()),
                                              mentionDisplayHelper: ComposerMentionDisplayHelper.mock,
-                                             appSettings: appSettings,
+                                             userSettings: userSettings,
                                              analyticsService: AnalyticsServiceMock(.init()),
                                              composerDraftService: draftServiceMock)
         viewModel.context.composerFormattingEnabled = true

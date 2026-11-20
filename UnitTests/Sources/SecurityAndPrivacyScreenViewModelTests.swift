@@ -8,7 +8,6 @@
 
 import Combine
 import MatrixRustSDK
-@testable import Seventwos
 import Testing
 
 @MainActor
@@ -361,7 +360,7 @@ final class SecurityAndPrivacyScreenViewModelTests {
         setupViewModel(joinedParentSpaces: [], joinRule: .public)
         
         // Saving shouldn't dismiss this screen (or trigger any other action).
-        let deferred = deferFailure(viewModel.actionsPublisher, timeout: .seconds(1)) { _ in true }
+        let deferred = deferFailure(viewModel.actionsPublisher, timeout: .milliseconds(300)) { _ in true }
         
         context.desiredSettings.accessType = .inviteOnly
         context.send(viewAction: .save)
@@ -428,7 +427,7 @@ final class SecurityAndPrivacyScreenViewModelTests {
         #expect(context.alertInfo != nil)
         
         // The screen should not be dismissed if a failure occurred.
-        let deferred = deferFailure(viewModel.actionsPublisher, timeout: .seconds(1)) { _ in true }
+        let deferred = deferFailure(viewModel.actionsPublisher, timeout: .milliseconds(300)) { _ in true }
         context.alertInfo?.primaryButton.action?() // Save
         try await deferred.fulfill()
     }
@@ -455,11 +454,9 @@ final class SecurityAndPrivacyScreenViewModelTests {
     
     private func setupViewModel(joinedParentSpaces: [SpaceServiceRoom],
                                 topLevelSpaces: [SpaceServiceRoom] = [],
-                                joinRule: Seventwos.JoinRule,
-                                forceDisableE2EE: Bool = false) {
-        let appSettings = AppSettings.volatile()
-        appSettings.knockingEnabled = true
-        appSettings.forceDisableE2EE.applyRemoteValue(forceDisableE2EE)
+                                joinRule: Seventwos.JoinRule) {
+        let userSettings = UserSettings.mock()
+        userSettings.app.knockingEnabled = true
         roomProxy = JoinedRoomProxyMock(.init(isEncrypted: false,
                                               canonicalAlias: "#room:matrix.org",
                                               members: .allMembersAsCreator,
@@ -468,11 +465,12 @@ final class SecurityAndPrivacyScreenViewModelTests {
         roomProxy.updateJoinRuleReturnValue = .success(())
         roomProxy.updateRoomDirectoryVisibilityReturnValue = .success(())
         
+        let clientProxy = ClientProxyMock(.init(userIDServerName: "matrix.org",
+                                                spaceServiceConfiguration: .init(topLevelSpaces: topLevelSpaces,
+                                                                                 joinedParentSpaces: joinedParentSpaces)))
+        
         viewModel = SecurityAndPrivacyScreenViewModel(roomProxy: roomProxy,
-                                                      clientProxy: ClientProxyMock(.init(userIDServerName: "matrix.org",
-                                                                                         spaceServiceConfiguration: .init(topLevelSpaces: topLevelSpaces,
-                                                                                                                          joinedParentSpaces: joinedParentSpaces))),
-                                                      userIndicatorController: UserIndicatorControllerMock(),
-                                                      appSettings: appSettings)
+                                                      userSession: UserSessionMock(.init(clientProxy: clientProxy, userSettings: userSettings)),
+                                                      userIndicatorController: UserIndicatorControllerMock())
     }
 }

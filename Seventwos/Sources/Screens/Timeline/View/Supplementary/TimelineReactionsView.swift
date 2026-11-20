@@ -44,12 +44,13 @@ struct TimelineReactionsView: View {
     var body: some View {
         layout {
             ForEach(reactions) { reaction in
-                TimelineReactionButton(reaction: reaction) { key in
+                TimelineReactionButton(reaction: reaction, mediaProvider: context.mediaProvider) { key in
                     feedbackGenerator.impactOccurred()
                     context.send(viewAction: .toggleReaction(key: key, itemID: itemID))
                 } showReactionSummary: { key in
                     context.send(viewAction: .displayReactionSummary(itemID: itemID, key: key))
                 }
+                .background { reactionEffectTrigger(for: reaction) }
                 .reactionLayoutItem(.reaction)
                 .environment(\.layoutDirection, layoutDirection)
             }
@@ -79,6 +80,16 @@ struct TimelineReactionsView: View {
     
     // MARK: - Private
     
+    @ViewBuilder
+    private func reactionEffectTrigger(for reaction: AggregatedReaction) -> some View {
+        // The unique ID survives the local echo being replaced by the remote one.
+        if let pendingReactionEffect = context.viewState.pendingReactionEffect,
+           pendingReactionEffect.itemID.uniqueID == itemID.uniqueID,
+           pendingReactionEffect.key == reaction.key {
+            ReactionEffectTrigger(context: context)
+        }
+    }
+    
     private var isCollapsible: Bool {
         reactions.count > 5
     }
@@ -96,6 +107,26 @@ struct TimelineReactionsView: View {
 }
 
 /// The pill shape for the label that surrounds both the reaction and collapse buttons.
+/// Reports a reaction's position once it has settled on screen so that its effect can play from it.
+private struct ReactionEffectTrigger: View {
+    let context: TimelineViewModel.Context
+    
+    @State private var frame = CGRect.zero
+    
+    var body: some View {
+        Color.clear
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame = $0 }
+            .task {
+                // Lets the cell finish resizing and any sheet the reaction was picked from finish dismissing.
+                guard await (try? Task.sleep(for: .milliseconds(500))) != nil else { return }
+                
+                // Collapsed reactions are hidden at `CollapsibleReactionLayout.pointOffscreen`, far above the screen.
+                let origin = frame.maxY < 0 ? nil : CGPoint(x: frame.midX, y: frame.midY)
+                context.send(viewAction: .playReactionEffect(origin: origin))
+            }
+    }
+}
+
 struct TimelineReactionButtonLabel<Content: View>: View {
     var isHighlighted = false
     @ViewBuilder var content: () -> Content
@@ -139,6 +170,7 @@ struct TimelineCollapseButtonLabel: View {
 
 struct TimelineReactionButton: View {
     let reaction: AggregatedReaction
+    let mediaProvider: MediaProviderProtocol?
     let toggleReaction: (String) -> Void
     let showReactionSummary: (String) -> Void
     @ScaledMetric(relativeTo: .subheadline) private var lineHeight = 20
@@ -176,13 +208,11 @@ struct TimelineReactionButton: View {
                 // Designs have bodyMD for the key but practically this makes
                 // emojis too big. bodySM gives a more appropriate size when compared
                 // to the count text and the lineHeight/padding in the designs.
-                Text(reaction.displayKey)
+                ReactionKeyView(reaction: reaction, mediaProvider: mediaProvider, size: lineHeight)
                     .font(.compound.bodySM)
-                if reaction.count > 1 {
-                    Text(String(reaction.count))
-                        .font(.compound.bodyMD)
-                        .foregroundColor(textColor)
-                }
+                Text(String(reaction.count))
+                    .font(.compound.bodyMD)
+                    .foregroundColor(textColor)
             }
             .frame(height: lineHeight, alignment: .center)
             .padding(.vertical, 6)
@@ -192,6 +222,27 @@ struct TimelineReactionButton: View {
     
     var textColor: Color {
         reaction.isHighlighted ? Color.compound.textPrimary : .compound.textSecondary
+    }
+}
+
+/// Shows a reaction's key, or its custom image when the key is an `mxc://` URI.
+struct ReactionKeyView: View {
+    let reaction: AggregatedReaction
+    let mediaProvider: MediaProviderProtocol?
+    let size: CGFloat
+    
+    var body: some View {
+        // Reaction keys carry no mimetype, so always hint `image/gif` to take LoadableImage's animated path. Kingfisher sniffs the actual format, so static images still render (full size, no thumbnail).
+        if let imageURL = reaction.imageURL, let mediaSource = try? MediaSourceProxy(url: imageURL, mimeType: "image/gif") {
+            LoadableImage(mediaSource: mediaSource,
+                          size: CGSize(width: size, height: size),
+                          mediaProvider: mediaProvider,
+                          transformer: { $0.scaledToFit() },
+                          placeholder: { Color.clear })
+                .frame(width: size, height: size)
+        } else {
+            Text(reaction.displayKey)
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-// Generated using Sourcery 2.3.0 — https://github.com/krzysztofzablocki/Sourcery
+// Generated using Sourcery 2.4.1 — https://github.com/krzysztofzablocki/Sourcery
 // DO NOT EDIT
 
 // swiftlint:disable all
@@ -11,7 +11,6 @@ enum TestablePreviewsDictionary {
     static let dictionary: [String: any PreviewProvider.Type] = {
         var dictionary: [String: any PreviewProvider.Type] = [
             "ActiveCallTimelineItemView_Previews" : ActiveCallTimelineItemView_Previews.self,
-            "AdvancedSettingsScreen_Previews" : AdvancedSettingsScreen_Previews.self,
             "AnalyticsPromptScreen_Previews" : AnalyticsPromptScreen_Previews.self,
             "AnalyticsSettingsScreen_Previews" : AnalyticsSettingsScreen_Previews.self,
             "AppLockScreen_Previews" : AppLockScreen_Previews.self,
@@ -23,7 +22,7 @@ enum TestablePreviewsDictionary {
             "AuthenticationClassicAppBackupInstructionsView_Previews" : AuthenticationClassicAppBackupInstructionsView_Previews.self,
             "AuthenticationStartScreen_Previews" : AuthenticationStartScreen_Previews.self,
             "AvatarHeaderView_Previews" : AvatarHeaderView_Previews.self,
-            "AvatarSettingsButtonLabel_Previews" : AvatarSettingsButtonLabel_Previews.self,
+            "AvatarSettingsButton_Previews" : AvatarSettingsButton_Previews.self,
             "BadgeLabel_Previews" : BadgeLabel_Previews.self,
             "BlockedUsersScreen_Previews" : BlockedUsersScreen_Previews.self,
             "BloomModifier_Previews" : BloomModifier_Previews.self,
@@ -90,6 +89,7 @@ enum TestablePreviewsDictionary {
             "LocationPickerSheet_Previews" : LocationPickerSheet_Previews.self,
             "LocationRoomTimelineView_Previews" : LocationRoomTimelineView_Previews.self,
             "LocationSharingScreen_Previews" : LocationSharingScreen_Previews.self,
+            "LocationSharingSettingsScreen_Previews" : LocationSharingSettingsScreen_Previews.self,
             "LongPressWithFeedback_Previews" : LongPressWithFeedback_Previews.self,
             "ManageAuthorizedSpacesScreen_Previews" : ManageAuthorizedSpacesScreen_Previews.self,
             "ManageRoomMemberSheetView_Previews" : ManageRoomMemberSheetView_Previews.self,
@@ -97,12 +97,16 @@ enum TestablePreviewsDictionary {
             "MatrixUserPermalink_Previews" : MatrixUserPermalink_Previews.self,
             "MediaEventsTimelineScreen_Previews" : MediaEventsTimelineScreen_Previews.self,
             "MediaUploadPreviewScreen_Previews" : MediaUploadPreviewScreen_Previews.self,
+            "MediaUploadQualitySettingsScreen_Previews" : MediaUploadQualitySettingsScreen_Previews.self,
             "MentionSuggestionItemView_Previews" : MentionSuggestionItemView_Previews.self,
             "MessageComposerTextField_Previews" : MessageComposerTextField_Previews.self,
             "MessageComposer_Previews" : MessageComposer_Previews.self,
             "MessageForwardingScreen_Previews" : MessageForwardingScreen_Previews.self,
             "MessageText_Previews" : MessageText_Previews.self,
+            "ModerationAndSafetySettingsScreen_Previews" : ModerationAndSafetySettingsScreen_Previews.self,
+            "MultiAccountAnnouncementView_Previews" : MultiAccountAnnouncementView_Previews.self,
             "NoticeRoomTimelineView_Previews" : NoticeRoomTimelineView_Previews.self,
+            "NotificationCountBadge_Previews" : NotificationCountBadge_Previews.self,
             "NotificationPermissionsScreen_Previews" : NotificationPermissionsScreen_Previews.self,
             "NotificationSettingsEditScreenRoomCell_Previews" : NotificationSettingsEditScreenRoomCell_Previews.self,
             "NotificationSettingsEditScreen_Previews" : NotificationSettingsEditScreen_Previews.self,
@@ -159,6 +163,8 @@ enum TestablePreviewsDictionary {
             "RoomThreadListScreen_Previews" : RoomThreadListScreen_Previews.self,
             "SFNumberedListView_Previews" : SFNumberedListView_Previews.self,
             "ScanStateMediaEventsTimelineViews_Previews" : ScanStateMediaEventsTimelineViews_Previews.self,
+            "SearchScreenHistoryLimitSheet_Previews" : SearchScreenHistoryLimitSheet_Previews.self,
+            "SearchScreenMessagesNoResultsView_Previews" : SearchScreenMessagesNoResultsView_Previews.self,
             "SearchScreen_Previews" : SearchScreen_Previews.self,
             "SecureBackupKeyBackupScreen_Previews" : SecureBackupKeyBackupScreen_Previews.self,
             "SecurityAndPrivacyScreen_Previews" : SecurityAndPrivacyScreen_Previews.self,
@@ -170,7 +176,6 @@ enum TestablePreviewsDictionary {
             "SettingsScreenUserStatusPickerView_Previews" : SettingsScreenUserStatusPickerView_Previews.self,
             "SettingsScreenUserStatusRow_Previews" : SettingsScreenUserStatusRow_Previews.self,
             "ShimmerOverlay_Previews" : ShimmerOverlay_Previews.self,
-            "SoftLogoutScreen_Previews" : SoftLogoutScreen_Previews.self,
             "SpaceAddRoomsScreenSelectedItem_Previews" : SpaceAddRoomsScreenSelectedItem_Previews.self,
             "SpaceHeaderTopicSheetView_Previews" : SpaceHeaderTopicSheetView_Previews.self,
             "SpaceHeaderView_Previews" : SpaceHeaderView_Previews.self,
@@ -195,6 +200,7 @@ enum TestablePreviewsDictionary {
             "TimelineItemStyler_Previews" : TimelineItemStyler_Previews.self,
             "TimelineMediaContentScanningFailureView_Previews" : TimelineMediaContentScanningFailureView_Previews.self,
             "TimelineMediaPreviewRedactConfirmationView_Previews" : TimelineMediaPreviewRedactConfirmationView_Previews.self,
+            "TimelineMessageSelectionActionBar_Previews" : TimelineMessageSelectionActionBar_Previews.self,
             "TimelineReactionView_Previews" : TimelineReactionView_Previews.self,
             "TimelineReadReceiptsView_Previews" : TimelineReadReceiptsView_Previews.self,
             "TimelineReplyView_Previews" : TimelineReplyView_Previews.self,

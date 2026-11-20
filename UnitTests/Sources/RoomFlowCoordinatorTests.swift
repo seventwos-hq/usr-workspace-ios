@@ -8,7 +8,6 @@
 
 import Combine
 import MatrixRustSDKMocks
-@testable import Seventwos
 import Testing
 
 @MainActor
@@ -19,10 +18,10 @@ final class RoomFlowCoordinatorTests {
     var navigationStackCoordinator: NavigationStackCoordinator!
     var cancellables = Set<AnyCancellable>()
     
-    private let appSettings: AppSettings
+    private let userSettings: UserSettings
     
     init() {
-        appSettings = AppSettings.volatile()
+        userSettings = UserSettings.mock()
     }
     
     @Test
@@ -230,7 +229,7 @@ final class RoomFlowCoordinatorTests {
     
     @Test
     func threadedEventRoutes() async throws {
-        appSettings.threadsEnabled = true
+        userSettings.app.threadsEnabled = true
         setupRoomFlowCoordinator()
         
         // Navigate directly to the threaded event
@@ -324,7 +323,7 @@ final class RoomFlowCoordinatorTests {
         #expect(navigationStackCoordinator.rootCoordinator is RoomScreenCoordinator)
         #expect(navigationStackCoordinator.stackCoordinators.isEmpty)
         
-        #expect((navigationStackCoordinator.sheetCoordinator as? NavigationStackCoordinator)?.rootCoordinator is MediaUploadPreviewScreenCoordinator)
+        #expect(navigationStackCoordinator.sheetCoordinator is MediaUploadPreviewScreenCoordinator)
         
         try await process(route: .childRoom(roomID: "2", via: []), expectedStackCount: 1)
         let deferredSheetDismissal = deferFulfillment(navigationStackCoordinator.observe(\.sheetCoordinatorID)) { $0 == nil }
@@ -334,7 +333,7 @@ final class RoomFlowCoordinatorTests {
         
         let deferredPop = deferFulfillment(navigationStackCoordinator.observe(\.stackCoordinators.count)) { $0 == 0 }
         try await deferredPop.fulfill()
-        #expect((navigationStackCoordinator.sheetCoordinator as? NavigationStackCoordinator)?.rootCoordinator is MediaUploadPreviewScreenCoordinator)
+        #expect(navigationStackCoordinator.sheetCoordinator is MediaUploadPreviewScreenCoordinator)
     }
     
     @Test
@@ -452,7 +451,7 @@ final class RoomFlowCoordinatorTests {
     /// Handles a route that isn't expected to trigger any navigation.
     private func processNotExpectingNavigation(route: AppRoute) async throws {
         let currentStackCount = navigationStackCoordinator.stackCoordinators.count
-        let deferred = deferFailure(navigationStackCoordinator.observe(\.stackCoordinators.count), timeout: .seconds(1)) { $0 != currentStackCount }
+        let deferred = deferFailure(navigationStackCoordinator.observe(\.stackCoordinators.count), timeout: .milliseconds(300)) { $0 != currentStackCount }
         
         roomFlowCoordinator.handleAppRoute(route, animated: true)
         try await deferred.fulfill()
@@ -522,18 +521,16 @@ final class RoomFlowCoordinatorTests {
             "1"
         }
         
-        let flowParameters = CommonFlowParameters(userSession: UserSessionMock(.init(clientProxy: clientProxy)),
+        let userSession = UserSessionMock(.init(clientProxy: clientProxy, userSettings: userSettings))
+        let flowParameters = CommonFlowParameters(userSession: userSession,
+                                                  availableSessionsPublisher: .init([.init(userSession: userSession)]),
                                                   bugReportService: BugReportServiceMock(.init()),
-                                                  elementCallService: ElementCallServiceMock(.init()),
                                                   timelineControllerFactory: timelineControllerFactory,
-                                                  emojiProvider: EmojiProvider(appSettings: appSettings),
+                                                  emojiProvider: EmojiProvider(userSettings: userSettings),
                                                   linkMetadataProvider: LinkMetadataProvider(),
                                                   appMediator: AppMediatorMock(.init()),
-                                                  appSettings: appSettings,
-                                                  appHooks: AppHooks(),
                                                   analytics: AnalyticsServiceMock(.init()),
                                                   userIndicatorController: UserIndicatorControllerMock(),
-                                                  notificationManager: NotificationManagerMock(),
                                                   stateMachineFactory: StateMachineFactory())
         
         roomFlowCoordinator = RoomFlowCoordinator(roomID: roomID,

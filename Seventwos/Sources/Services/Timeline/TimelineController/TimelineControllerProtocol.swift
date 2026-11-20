@@ -96,6 +96,12 @@ protocol TimelineControllerProtocol: Sendable {
     
     func sendHandle(for itemID: TimelineItemIdentifier) -> SendHandleProxy?
     
+    func pendingSendTarget(for itemID: TimelineItemIdentifier) -> SendTarget?
+    
+    func retrySend(_ itemID: TimelineItemIdentifier, target: SendTarget) async
+    
+    func abortSend(_ itemID: TimelineItemIdentifier, target: SendTarget) async
+    
     func eventTimestamp(for itemID: TimelineItemIdentifier) -> Date?
     
     // MARK: - Sending
@@ -136,6 +142,7 @@ protocol TimelineControllerProtocol: Sendable {
     func sendVoiceMessage(url: URL,
                           audioInfo: AudioInfo,
                           waveform: [Float],
+                          inReplyToEventID: String?,
                           requestHandle: @MainActor (SendAttachmentJoinHandleProtocol) -> Void) async -> Result<Void, TimelineControllerError>
     
     func sendGallery(itemInfos: [GalleryItemInfo],

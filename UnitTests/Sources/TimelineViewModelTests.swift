@@ -7,9 +7,9 @@
 //
 
 import Combine
+@testable import Seventwos
 import Foundation
 import MatrixRustSDK
-@testable import Seventwos
 import Testing
 
 @MainActor
@@ -184,7 +184,7 @@ final class TimelineViewModelTests {
         #expect(viewModel.context.viewState.timelineState.focussedEvent == nil)
         
         // When focussing on a loaded item.
-        let deferred = deferFailure(viewModel.context.$viewState, timeout: .seconds(1)) { !$0.timelineState.isLive }
+        let deferred = deferFailure(viewModel.context.$viewState, timeout: .milliseconds(300)) { !$0.timelineState.isLive }
         await viewModel.focusOnEvent(eventID: "t1")
         try await deferred.fulfill()
         
@@ -294,17 +294,14 @@ final class TimelineViewModelTests {
         
         let timelineController = TimelineControllerMock(.init(roomProxy: roomProxy, timelineItems: items))
         
-        let appSettings = AppSettings.volatile()
-        
         let viewModel = TimelineViewModel(roomProxy: roomProxy,
                                           timelineController: timelineController,
                                           userSession: UserSessionMock(.init()),
                                           mediaPlayerProvider: MediaPlayerProviderMock(),
                                           userIndicatorController: UserIndicatorControllerMock(),
                                           appMediator: AppMediatorMock(.init()),
-                                          appSettings: appSettings,
                                           analyticsService: AnalyticsServiceMock(.init()),
-                                          emojiProvider: EmojiProvider(appSettings: appSettings),
+                                          emojiProvider: EmojiProvider(userSettings: .mock()),
                                           linkMetadataProvider: LinkMetadataProvider(),
                                           timelineControllerFactory: TimelineControllerFactoryMock(.init()))
         return (viewModel, roomProxy, timelineProxy, timelineController)
@@ -330,9 +327,8 @@ final class TimelineViewModelTests {
                                           mediaPlayerProvider: MediaPlayerProviderMock(),
                                           userIndicatorController: UserIndicatorControllerMock(),
                                           appMediator: AppMediatorMock(.init()),
-                                          appSettings: appSettings,
                                           analyticsService: AnalyticsServiceMock(.init()),
-                                          emojiProvider: EmojiProvider(appSettings: appSettings),
+                                          emojiProvider: EmojiProvider(userSettings: .mock()),
                                           linkMetadataProvider: LinkMetadataProvider(),
                                           timelineControllerFactory: TimelineControllerFactoryMock(.init()))
         
@@ -346,8 +342,6 @@ final class TimelineViewModelTests {
     
     @Test
     func showManageUserAsAdmin() async throws {
-        let appSettings = AppSettings.volatile()
-        
         let viewModel = TimelineViewModel(roomProxy: JoinedRoomProxyMock(.init(name: "",
                                                                                members: [RoomMemberProxyMock.mockAdmin,
                                                                                          RoomMemberProxyMock.mockAlice],
@@ -357,9 +351,8 @@ final class TimelineViewModelTests {
                                           mediaPlayerProvider: MediaPlayerProviderMock(),
                                           userIndicatorController: UserIndicatorControllerMock(),
                                           appMediator: AppMediatorMock(.init()),
-                                          appSettings: appSettings,
                                           analyticsService: AnalyticsServiceMock(.init()),
-                                          emojiProvider: EmojiProvider(appSettings: appSettings),
+                                          emojiProvider: EmojiProvider(userSettings: .mock()),
                                           linkMetadataProvider: LinkMetadataProvider(),
                                           timelineControllerFactory: TimelineControllerFactoryMock(.init()))
         
@@ -385,8 +378,6 @@ final class TimelineViewModelTests {
     
     @Test
     func showDetailsForAnAdmin() async throws {
-        let appSettings = AppSettings.volatile()
-        
         let viewModel = TimelineViewModel(roomProxy: JoinedRoomProxyMock(.init(name: "",
                                                                                members: [RoomMemberProxyMock.mockAdmin,
                                                                                          RoomMemberProxyMock.mockAlice],
@@ -396,9 +387,8 @@ final class TimelineViewModelTests {
                                           mediaPlayerProvider: MediaPlayerProviderMock(),
                                           userIndicatorController: UserIndicatorControllerMock(),
                                           appMediator: AppMediatorMock(.init()),
-                                          appSettings: appSettings,
                                           analyticsService: AnalyticsServiceMock(.init()),
-                                          emojiProvider: EmojiProvider(appSettings: appSettings),
+                                          emojiProvider: EmojiProvider(userSettings: .mock()),
                                           linkMetadataProvider: LinkMetadataProvider(),
                                           timelineControllerFactory: TimelineControllerFactoryMock(.init()))
         
@@ -424,8 +414,6 @@ final class TimelineViewModelTests {
     
     @Test
     func showDetailsForABannedUser() async throws {
-        let appSettings = AppSettings.volatile()
-        
         let viewModel = TimelineViewModel(roomProxy: JoinedRoomProxyMock(.init(name: "",
                                                                                members: [RoomMemberProxyMock.mockAdmin,
                                                                                          RoomMemberProxyMock.mockBanned[0]],
@@ -435,9 +423,8 @@ final class TimelineViewModelTests {
                                           mediaPlayerProvider: MediaPlayerProviderMock(),
                                           userIndicatorController: UserIndicatorControllerMock(),
                                           appMediator: AppMediatorMock(.init()),
-                                          appSettings: appSettings,
                                           analyticsService: AnalyticsServiceMock(.init()),
-                                          emojiProvider: EmojiProvider(appSettings: appSettings),
+                                          emojiProvider: EmojiProvider(userSettings: .mock()),
                                           linkMetadataProvider: LinkMetadataProvider(),
                                           timelineControllerFactory: TimelineControllerFactoryMock(.init()))
         
@@ -466,8 +453,6 @@ final class TimelineViewModelTests {
     
     @Test
     func pinnedEvents() async throws {
-        let appSettings = AppSettings.volatile()
-        
         var configuration = JoinedRoomProxyMockConfiguration(name: "",
                                                              pinnedEventIDs: .init(["test1"]))
         let roomProxyMock = JoinedRoomProxyMock(configuration)
@@ -480,9 +465,8 @@ final class TimelineViewModelTests {
                                           mediaPlayerProvider: MediaPlayerProviderMock(),
                                           userIndicatorController: UserIndicatorControllerMock(),
                                           appMediator: AppMediatorMock(.init()),
-                                          appSettings: appSettings,
                                           analyticsService: AnalyticsServiceMock(.init()),
-                                          emojiProvider: EmojiProvider(appSettings: appSettings),
+                                          emojiProvider: EmojiProvider(userSettings: .mock()),
                                           linkMetadataProvider: LinkMetadataProvider(),
                                           timelineControllerFactory: TimelineControllerFactoryMock(.init()))
         #expect(configuration.pinnedEventIDs == viewModel.context.viewState.pinnedEventIDs)
@@ -497,8 +481,6 @@ final class TimelineViewModelTests {
     
     @Test
     func canUserPinEvents() async throws {
-        let appSettings = AppSettings.volatile()
-        
         let configuration = JoinedRoomProxyMockConfiguration(name: "",
                                                              powerLevelsConfiguration: .init(canUserPin: true))
         let roomProxyMock = JoinedRoomProxyMock(configuration)
@@ -511,9 +493,8 @@ final class TimelineViewModelTests {
                                           mediaPlayerProvider: MediaPlayerProviderMock(),
                                           userIndicatorController: UserIndicatorControllerMock(),
                                           appMediator: AppMediatorMock(.init()),
-                                          appSettings: appSettings,
                                           analyticsService: AnalyticsServiceMock(.init()),
-                                          emojiProvider: EmojiProvider(appSettings: appSettings),
+                                          emojiProvider: EmojiProvider(userSettings: .mock()),
                                           linkMetadataProvider: LinkMetadataProvider(),
                                           timelineControllerFactory: TimelineControllerFactoryMock(.init()))
         
@@ -570,7 +551,7 @@ final class TimelineViewModelTests {
         // Given a room with a message that failed to send for a known reason
         let items = [TextRoomTimelineItem(eventID: "t1", sendFailure: .unknown(reason: "M_TOO_LARGE"))]
         let timelineController = TimelineControllerMock(.init(timelineItems: items))
-        timelineController.sendHandleForReturnValue = .mock
+        timelineController.pendingSendTargetForReturnValue = .event
         let viewModel = makeViewModel(timelineController: timelineController)
         
         viewModel.process(viewAction: .itemSendInfoTapped(itemID: items[0].id))
@@ -690,9 +671,9 @@ final class TimelineViewModelTests {
     // MARK: - Selection
     
     @Test
-    func selectMenuActionEntersSelection() async throws {
+    func forwardMenuActionStartsSelection() async throws {
         let items = [TextRoomTimelineItem(eventID: "$1"), TextRoomTimelineItem(eventID: "$2")]
-        let viewModel = makeSelectionViewModel(items: items)
+        let viewModel = makeViewModel(items: items)
         
         let deferred = deferFulfillment(viewModel.actions) { action in
             if case .composer(action: .removeFocus) = action {
@@ -700,57 +681,112 @@ final class TimelineViewModelTests {
             }
             return false
         }
-        viewModel.process(viewAction: .handleTimelineItemMenuAction(itemID: items[0].id, action: .selectMessages))
+        viewModel.process(viewAction: .handleTimelineItemMenuAction(itemID: items[0].id, action: .forward(itemID: items[0].id)))
         try await deferred.fulfill()
         
-        #expect(viewModel.state.selection.isActive)
-        #expect(viewModel.state.selection.selectedEventIDs == ["$1"])
+        #expect(viewModel.state.messageSelection.isActive)
+        #expect(viewModel.state.messageSelection.selectedEventIDs == ["$1"])
     }
     
     @Test
-    func selectIsIgnoredWhenFlagIsOff() {
+    func forwardMenuActionStartsSelectionInThePinnedTimeline() {
         let items = [TextRoomTimelineItem(eventID: "$1")]
-        let viewModel = makeViewModel(timelineController: TimelineControllerMock(.init(timelineItems: items)))
+        let viewModel = makeViewModel(timelineController: TimelineControllerMock(.init(timelineKind: .pinned, timelineItems: items)))
         
-        viewModel.process(viewAction: .handleTimelineItemMenuAction(itemID: items[0].id, action: .selectMessages))
-        viewModel.process(viewAction: .startSelection(itemID: items[0].id))
+        viewModel.process(viewAction: .handleTimelineItemMenuAction(itemID: items[0].id, action: .forward(itemID: items[0].id)))
         
-        #expect(!viewModel.state.selection.isActive)
+        #expect(viewModel.state.messageSelection.selectedEventIDs == ["$1"])
+    }
+    
+    @Test
+    func forwardMenuActionForwardsTheMessageInTheMediaTimeline() async throws {
+        let items = [TextRoomTimelineItem(eventID: "$1")]
+        let viewModel = makeViewModel(timelineController: TimelineControllerMock(.init(timelineKind: .media(.mediaFilesScreen), timelineItems: items)))
+        
+        let deferred = deferFulfillment(viewModel.actions) { action in
+            if case .displayMessageForwarding(let forwardingPayload) = action {
+                return forwardingPayload.ids == [items[0].id]
+            }
+            return false
+        }
+        viewModel.process(viewAction: .handleTimelineItemMenuAction(itemID: items[0].id, action: .forward(itemID: items[0].id)))
+        try await deferred.fulfill()
+        
+        #expect(!viewModel.state.messageSelection.isActive)
+    }
+    
+    @Test
+    func forwardSelectionUsesTimelineOrder() async throws {
+        let items = (1...4).map { TextRoomTimelineItem(eventID: "$\($0)") }
+        let viewModel = makeViewModel(items: items)
+        
+        // Select the last message first, then the second one.
+        startSelection(items[3].id, in: viewModel)
+        viewModel.process(viewAction: .toggleMessageSelection(itemID: items[1].id))
+        
+        let deferred = deferFulfillment(viewModel.actions) { action in
+            if case .displayMessageForwarding(let forwardingPayload) = action {
+                return forwardingPayload.ids == [items[1].id, items[3].id] && forwardingPayload.contents.count == 2
+            }
+            return false
+        }
+        viewModel.process(viewAction: .forwardMessageSelection)
+        try await deferred.fulfill()
+        
+        // The selection is kept until the forwarding completes, so cancelling the picker returns to it.
+        #expect(viewModel.state.messageSelection.selectedEventIDs == ["$2", "$4"])
+    }
+    
+    @Test
+    func forwardingCompletionClearsTheSelection() {
+        let items = [TextRoomTimelineItem(eventID: "$1"), TextRoomTimelineItem(eventID: "$2")]
+        let viewModel = makeViewModel(items: items)
+        
+        startSelection(items[0].id, in: viewModel)
+        viewModel.process(viewAction: .toggleMessageSelection(itemID: items[1].id))
+        viewModel.clearMessageSelection()
+        
+        #expect(!viewModel.state.messageSelection.isActive)
     }
     
     @Test
     func toggleSelectionAddsAndRemovesItems() {
         let items = [TextRoomTimelineItem(eventID: "$1"), TextRoomTimelineItem(eventID: "$2")]
-        let viewModel = makeSelectionViewModel(items: items)
+        let viewModel = makeViewModel(items: items)
         
         // Toggling before entering the selection does nothing.
-        viewModel.process(viewAction: .toggleSelection(itemID: items[0].id))
-        #expect(!viewModel.state.selection.isActive)
+        viewModel.process(viewAction: .toggleMessageSelection(itemID: items[0].id))
+        #expect(!viewModel.state.messageSelection.isActive)
         
-        viewModel.process(viewAction: .startSelection(itemID: items[0].id))
-        viewModel.process(viewAction: .toggleSelection(itemID: items[1].id))
-        #expect(viewModel.state.selection.selectedEventIDs == ["$1", "$2"])
-        #expect(viewModel.state.selection.count == 2)
+        startSelection(items[0].id, in: viewModel)
+        viewModel.process(viewAction: .toggleMessageSelection(itemID: items[1].id))
+        #expect(viewModel.state.messageSelection.selectedEventIDs == ["$1", "$2"])
+        #expect(viewModel.state.messageSelection.count == 2)
         
-        viewModel.process(viewAction: .toggleSelection(itemID: items[0].id))
-        #expect(viewModel.state.selection.selectedEventIDs == ["$2"])
+        viewModel.process(viewAction: .toggleMessageSelection(itemID: items[0].id))
+        #expect(viewModel.state.messageSelection.selectedEventIDs == ["$2"])
         
-        // Deselecting the last item ends the selection.
-        viewModel.process(viewAction: .toggleSelection(itemID: items[1].id))
-        #expect(!viewModel.state.selection.isActive)
+        // Deselecting the last item keeps the selection going, with nothing selected.
+        viewModel.process(viewAction: .toggleMessageSelection(itemID: items[1].id))
+        #expect(viewModel.state.messageSelection.isActive)
+        #expect(viewModel.state.messageSelection.selectedEventIDs.isEmpty)
+        
+        // Selecting again still works.
+        viewModel.process(viewAction: .toggleMessageSelection(itemID: items[0].id))
+        #expect(viewModel.state.messageSelection.selectedEventIDs == ["$1"])
     }
     
     @Test
-    func clearSelectionEndsTheSelection() {
+    func clearMessageSelectionEndsTheSelection() {
         let items = [TextRoomTimelineItem(eventID: "$1"), TextRoomTimelineItem(eventID: "$2")]
-        let viewModel = makeSelectionViewModel(items: items)
+        let viewModel = makeViewModel(items: items)
         
-        viewModel.process(viewAction: .startSelection(itemID: items[0].id))
-        viewModel.process(viewAction: .toggleSelection(itemID: items[1].id))
-        viewModel.process(viewAction: .clearSelection)
+        startSelection(items[0].id, in: viewModel)
+        viewModel.process(viewAction: .toggleMessageSelection(itemID: items[1].id))
+        viewModel.process(viewAction: .clearMessageSelection)
         
-        #expect(!viewModel.state.selection.isActive)
-        #expect(viewModel.state.selection.selectedEventIDs.isEmpty)
+        #expect(!viewModel.state.messageSelection.isActive)
+        #expect(viewModel.state.messageSelection.selectedEventIDs.isEmpty)
     }
     
     @Test
@@ -777,33 +813,34 @@ final class TimelineViewModelTests {
                                              canBeRepliedTo: true,
                                              sender: .init(id: "@bob:matrix.org"),
                                              content: .init(body: "Sending"))
-        let nonSelectableItems: [RoomTimelineItemProtocol] = [state, redacted, localEcho]
-        let viewModel = makeSelectionViewModel(items: [text] + nonSelectableItems)
+        let poll = PollRoomTimelineItem.mock(poll: .emptyDisclosed)
+        let nonSelectableItems: [RoomTimelineItemProtocol] = [state, redacted, localEcho, poll]
+        let viewModel = makeViewModel(items: [text] + nonSelectableItems)
         
-        viewModel.process(viewAction: .startSelection(itemID: state.id))
-        #expect(!viewModel.state.selection.isActive)
+        startSelection(state.id, in: viewModel)
+        #expect(!viewModel.state.messageSelection.isActive)
         
-        viewModel.process(viewAction: .startSelection(itemID: text.id))
+        startSelection(text.id, in: viewModel)
         for item in nonSelectableItems {
-            viewModel.process(viewAction: .toggleSelection(itemID: item.id))
+            viewModel.process(viewAction: .toggleMessageSelection(itemID: item.id))
         }
-        #expect(viewModel.state.selection.selectedEventIDs == ["$1"])
+        #expect(viewModel.state.messageSelection.selectedEventIDs == ["$1"])
     }
     
     @Test
     func selectionIsLimited() {
-        let items = (0...TimelineSelectionState.limit).map { TextRoomTimelineItem(eventID: "$\($0)") }
+        let items = (0...TimelineMessageSelectionState.limit).map { TextRoomTimelineItem(eventID: "$\($0)") }
         let userIndicatorController = UserIndicatorControllerMock()
-        let viewModel = makeSelectionViewModel(items: items, userIndicatorController: userIndicatorController)
+        let viewModel = makeViewModel(items: items, userIndicatorController: userIndicatorController)
         
-        viewModel.process(viewAction: .startSelection(itemID: items[0].id))
+        startSelection(items[0].id, in: viewModel)
         for item in items.dropFirst() {
-            viewModel.process(viewAction: .toggleSelection(itemID: item.id))
+            viewModel.process(viewAction: .toggleMessageSelection(itemID: item.id))
         }
         
-        #expect(viewModel.state.selection.count == TimelineSelectionState.limit)
-        #expect(viewModel.state.selection.isAtLimit)
-        #expect(!viewModel.state.selection.contains(items.last?.id.eventID))
+        #expect(viewModel.state.messageSelection.count == TimelineMessageSelectionState.limit)
+        #expect(viewModel.state.messageSelection.isAtLimit)
+        #expect(!viewModel.state.messageSelection.contains(items.last?.id.eventID))
         #expect(userIndicatorController.submitIndicatorDelayCallsCount == 1)
     }
     
@@ -811,11 +848,11 @@ final class TimelineViewModelTests {
     func selectionIsPrunedWhenItemsBecomeUnselectable() async throws {
         let items = [TextRoomTimelineItem(eventID: "$1"), TextRoomTimelineItem(eventID: "$2")]
         let timelineController = TimelineControllerMock(.init(timelineItems: items))
-        let viewModel = makeSelectionViewModel(timelineController: timelineController)
+        let viewModel = makeViewModel(timelineController: timelineController)
         
-        viewModel.process(viewAction: .startSelection(itemID: items[0].id))
-        viewModel.process(viewAction: .toggleSelection(itemID: items[1].id))
-        #expect(viewModel.state.selection.count == 2)
+        startSelection(items[0].id, in: viewModel)
+        viewModel.process(viewAction: .toggleMessageSelection(itemID: items[1].id))
+        #expect(viewModel.state.messageSelection.count == 2)
         
         // The first message gets redacted by someone else.
         let redacted = RedactedRoomTimelineItem(id: items[0].id,
@@ -825,7 +862,7 @@ final class TimelineViewModelTests {
                                                 isEditable: false,
                                                 canBeRepliedTo: false,
                                                 sender: .init(id: "@alice:matrix.org"))
-        let deferred = deferFulfillment(viewModel.context.$viewState) { $0.selection.selectedEventIDs == ["$2"] }
+        let deferred = deferFulfillment(viewModel.context.$viewState) { $0.messageSelection.selectedEventIDs == ["$2"] }
         timelineController.callbacks.send(.updatedTimelineItems(timelineItems: [redacted, items[1]], isSwitchingTimelines: false))
         try await deferred.fulfill()
     }
@@ -834,28 +871,13 @@ final class TimelineViewModelTests {
     func selectionIsClearedWhenSwitchingTimelines() async throws {
         let items = [TextRoomTimelineItem(eventID: "$1")]
         let timelineController = TimelineControllerMock(.init(timelineItems: items))
-        let viewModel = makeSelectionViewModel(timelineController: timelineController)
+        let viewModel = makeViewModel(timelineController: timelineController)
         
-        viewModel.process(viewAction: .startSelection(itemID: items[0].id))
-        #expect(viewModel.state.selection.isActive)
+        startSelection(items[0].id, in: viewModel)
+        #expect(viewModel.state.messageSelection.isActive)
         
-        let deferred = deferFulfillment(viewModel.context.$viewState) { !$0.selection.isActive }
+        let deferred = deferFulfillment(viewModel.context.$viewState) { !$0.messageSelection.isActive }
         timelineController.callbacks.send(.updatedTimelineItems(timelineItems: items, isSwitchingTimelines: true))
-        try await deferred.fulfill()
-    }
-    
-    @Test
-    func disablingTheFlagClearsTheSelection() async throws {
-        let items = [TextRoomTimelineItem(eventID: "$1")]
-        let appSettings = AppSettings.volatile()
-        appSettings.messageMultiSelectEnabled = true
-        let viewModel = makeViewModel(timelineController: TimelineControllerMock(.init(timelineItems: items)), appSettings: appSettings)
-        
-        viewModel.process(viewAction: .startSelection(itemID: items[0].id))
-        #expect(viewModel.state.selection.isActive)
-        
-        let deferred = deferFulfillment(viewModel.context.$viewState) { !$0.selection.isEnabled && !$0.selection.isActive }
-        appSettings.messageMultiSelectEnabled = false
         try await deferred.fulfill()
     }
     
@@ -880,7 +902,7 @@ final class TimelineViewModelTests {
                                       userIndicatorController: userIndicatorController,
                                       appMediator: AppMediatorMock(.init(isCameraAvailable: false)))
         
-        let deferredFailure = deferFailure(viewModel.actions, timeout: .seconds(1)) { action in
+        let deferredFailure = deferFailure(viewModel.actions, timeout: .milliseconds(300)) { action in
             guard case .displayCameraPicker = action else { return false }
             return true
         }
@@ -890,41 +912,196 @@ final class TimelineViewModelTests {
         #expect(userIndicatorController.submitIndicatorDelayReceivedArguments?.indicator.title == L10n.errorCameraUnavailable)
     }
     
+    // MARK: - Reaction effects
+    
+    @Test("Adding a celebration reaction plays its effect from the reaction",
+          arguments: [("🎉", ParticleEmitterType.confetti), ("🎉\u{FE0F}", .confetti), ("🎊", .confetti), ("🥳", .confetti),
+                      ("❤️", .hearts(colors: [.systemRed, .systemPink])), ("❤", .hearts(colors: [.systemRed, .systemPink])),
+                      ("♥️", .hearts(colors: [.systemRed, .systemPink])), ("💖", .hearts(colors: [.systemPink])),
+                      ("💙", .hearts(colors: [.systemBlue])), ("🖤", .hearts(colors: [.black, .darkGray])),
+                      ("❄️", .snowfall), ("🌧️", .rainfall), ("⛈️", .rainfall), ("🌦️", .rainfall), ("☔️", .rainfall),
+                      ("🔥", .fire),
+                      ("✨️", .sparkles), ("✨", .sparkles), ("❇️", .sparkles), ("🌟", .sparkles), ("🎆", .fireworks), ("🎇", .fireworks), ("🧨", .fireworks)])
+    func playEffectForAddedReaction(key: String, type: ParticleEmitterType) async throws {
+        // Given a message the user hasn't reacted to.
+        let item = TextRoomTimelineItem(text: "Message", sender: "bob")
+        let viewModel = makeReactionEffectsViewModel(item: item)
+        
+        // When adding a celebration reaction to it.
+        let deferred = deferFulfillment(viewModel.context.$viewState) { $0.pendingReactionEffect != nil }
+        viewModel.process(viewAction: .toggleReaction(key: key, itemID: item.id))
+        try await deferred.fulfill()
+        
+        // Then the reaction is flagged for its effect, which plays once the reaction reports its position.
+        #expect(viewModel.state.pendingReactionEffect?.itemID == item.id)
+        #expect(viewModel.state.pendingReactionEffect?.key == key)
+        #expect(viewModel.state.pendingReactionEffect?.type == type)
+        
+        viewModel.process(viewAction: .playReactionEffect(origin: CGPoint(x: 10, y: 20)))
+        
+        #expect(viewModel.state.pendingReactionEffect == nil)
+        #expect(viewModel.state.particleEffect?.origin == CGPoint(x: 10, y: 20))
+    }
+    
+    @Test
+    func skipReactionEffectWhenDisabled() async throws {
+        let item = TextRoomTimelineItem(text: "Message", sender: "bob")
+        let userSettings = UserSettings.mock()
+        userSettings.app.reactionCelebrationsEnabled = false
+        let viewModel = makeViewModel(timelineController: TimelineControllerMock(.init(timelineItems: [item])), userSettings: userSettings)
+        
+        // When adding a tada reaction without the feature flag.
+        let deferred = deferFailure(viewModel.context.$viewState, timeout: .milliseconds(300)) { $0.pendingReactionEffect != nil }
+        viewModel.process(viewAction: .toggleReaction(key: "🎉", itemID: item.id))
+        
+        // Then no effect plays.
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    func playEffectOnlyForAddedTadaReactions() async throws {
+        // Given a message the user has already sent a tada reaction to.
+        let sender = "@bob:server.com"
+        let reactions = [AggregatedReaction(accountOwnerID: sender, key: "🎉", senders: [.init(id: sender, timestamp: .mock)])]
+        let item = TextRoomTimelineItem(id: .randomEvent,
+                                        timestamp: .mock,
+                                        isOutgoing: true,
+                                        isEditable: true,
+                                        canBeRepliedTo: true,
+                                        sender: .init(id: sender, displayName: "bob"),
+                                        content: .init(body: "Message"),
+                                        properties: RoomTimelineItemProperties(reactions: reactions))
+        let viewModel = makeReactionEffectsViewModel(item: item)
+        
+        // When removing that reaction, or adding a different one.
+        let deferred = deferFailure(viewModel.context.$viewState, timeout: .milliseconds(300)) { $0.pendingReactionEffect != nil }
+        viewModel.process(viewAction: .toggleReaction(key: "🎉", itemID: item.id))
+        viewModel.process(viewAction: .toggleReaction(key: "🦄", itemID: item.id))
+        
+        // Then no effect plays.
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    func discardUnshownPendingReactionEffect() async throws {
+        let item = TextRoomTimelineItem(text: "Message", sender: "bob")
+        let viewModel = makeReactionEffectsViewModel(item: item)
+        
+        // When adding a tada reaction that never reports its position.
+        var deferred = deferFulfillment(viewModel.context.$viewState) { $0.pendingReactionEffect != nil }
+        viewModel.process(viewAction: .toggleReaction(key: "🎉", itemID: item.id))
+        try await deferred.fulfill()
+        
+        // Then it stops waiting, so it won't burst whenever the pill is next shown.
+        deferred = deferFulfillment(viewModel.context.$viewState) { $0.pendingReactionEffect == nil }
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    func playEffectForTadaReactionAddedFromTheItemMenu() async throws {
+        let item = TextRoomTimelineItem(text: "Message", sender: "bob")
+        let viewModel = makeReactionEffectsViewModel(item: item)
+        
+        // When adding a tada reaction through the interaction handler.
+        let deferred = deferFulfillment(viewModel.context.$viewState) { $0.pendingReactionEffect != nil }
+        viewModel.process(viewAction: .handleTimelineItemMenuAction(itemID: item.id, action: .toggleReaction(key: "🎉")))
+        try await deferred.fulfill()
+        
+        // Then it is flagged for its effect too.
+        #expect(viewModel.state.pendingReactionEffect?.itemID == item.id)
+    }
+    
+    @Test
+    func skipReactionEffectOfHiddenReaction() async throws {
+        let item = TextRoomTimelineItem(text: "Message", sender: "bob")
+        let viewModel = makeReactionEffectsViewModel(item: item)
+        let deferred = deferFulfillment(viewModel.context.$viewState) { $0.pendingReactionEffect != nil }
+        viewModel.process(viewAction: .toggleReaction(key: "🎉", itemID: item.id))
+        try await deferred.fulfill()
+        
+        // When the reaction is collapsed away and reports no origin.
+        viewModel.process(viewAction: .playReactionEffect(origin: nil))
+        
+        // Then nothing plays and the effect isn't left pending.
+        #expect(viewModel.state.pendingReactionEffect == nil)
+        #expect(viewModel.state.particleEffect == nil)
+    }
+    
+    @Test
+    func playEffectForIncomingTadaReactionOnce() async throws {
+        let item = TextRoomTimelineItem(text: "Message", sender: "alice")
+        let timelineController = TimelineControllerMock(.init(timelineItems: [item]))
+        let viewModel = makeReactionEffectsViewModel(item: item, timelineController: timelineController)
+        let reactedItem = item.reacted(by: "@charlie:server.com", at: .now)
+        
+        // When someone else reacts with a tada.
+        let deferred = deferFulfillment(viewModel.context.$viewState) { $0.pendingReactionEffect != nil }
+        timelineController.callbacks.send(.updatedTimelineItems(timelineItems: [reactedItem], isSwitchingTimelines: false))
+        try await deferred.fulfill()
+        
+        // Then its effect plays.
+        #expect(viewModel.state.pendingReactionEffect?.itemID == item.id)
+        viewModel.process(viewAction: .playReactionEffect(origin: CGPoint(x: 10, y: 20)))
+        
+        // But not again when the item is updated or scrolled back into view.
+        let deferredFailure = deferFailure(viewModel.context.$viewState, timeout: .milliseconds(300)) { $0.pendingReactionEffect != nil }
+        timelineController.callbacks.send(.updatedTimelineItems(timelineItems: [reactedItem], isSwitchingTimelines: false))
+        try await deferredFailure.fulfill()
+    }
+    
+    @Test
+    func skipReactionEffectsOfHistoricAndOwnReactions() async throws {
+        let item = TextRoomTimelineItem(text: "Message", sender: "alice")
+        let otherItem = TextRoomTimelineItem(text: "Other message", sender: "alice")
+        let timelineController = TimelineControllerMock(.init(timelineItems: [item, otherItem]))
+        let viewModel = makeReactionEffectsViewModel(item: item, timelineController: timelineController)
+        
+        // When loading a tada sent before the timeline was opened and one sent by the user.
+        let deferred = deferFailure(viewModel.context.$viewState, timeout: .milliseconds(300)) { $0.pendingReactionEffect != nil }
+        timelineController.callbacks.send(.updatedTimelineItems(timelineItems: [item.reacted(by: "@charlie:server.com", at: .distantPast),
+                                                                                otherItem.reacted(by: RoomMemberProxyMock.mockMe.userID, at: .now)],
+                                                                isSwitchingTimelines: false))
+        
+        // Then neither plays an effect, the user's own reactions play theirs when they add them.
+        try await deferred.fulfill()
+    }
+    
     // MARK: - Helpers
+    
+    private func makeViewModel(items: [RoomTimelineItemProtocol],
+                               userIndicatorController: UserIndicatorControllerProtocol = UserIndicatorControllerMock()) -> TimelineViewModel {
+        makeViewModel(timelineController: TimelineControllerMock(.init(timelineItems: items)),
+                      userIndicatorController: userIndicatorController)
+    }
     
     private func makeViewModel(roomProxy: JoinedRoomProxyProtocol? = nil,
                                focussedEventID: String? = nil,
                                timelineController: TimelineControllerProtocol,
                                userIndicatorController: UserIndicatorControllerProtocol = UserIndicatorControllerMock(),
-                               appSettings: AppSettings = .volatile(),
-                               appMediator: AppMediatorProtocol = AppMediatorMock(.init())) -> TimelineViewModel {
+                               appMediator: AppMediatorProtocol = AppMediatorMock(.init()),
+                               userSettings: UserSettings = .mock()) -> TimelineViewModel {
         TimelineViewModel(roomProxy: roomProxy ?? JoinedRoomProxyMock(.init(name: "")),
                           focussedEventID: focussedEventID,
                           timelineController: timelineController,
-                          userSession: UserSessionMock(.init()),
+                          userSession: UserSessionMock(.init(userSettings: userSettings)),
                           mediaPlayerProvider: MediaPlayerProviderMock(),
                           userIndicatorController: userIndicatorController,
                           appMediator: appMediator,
-                          appSettings: appSettings,
                           analyticsService: AnalyticsServiceMock(.init()),
-                          emojiProvider: EmojiProvider(appSettings: appSettings),
+                          emojiProvider: EmojiProvider(userSettings: .mock()),
                           linkMetadataProvider: LinkMetadataProvider(),
                           timelineControllerFactory: TimelineControllerFactoryMock(.init()))
     }
     
-    private func makeSelectionViewModel(items: [RoomTimelineItemProtocol],
-                                        userIndicatorController: UserIndicatorControllerProtocol = UserIndicatorControllerMock()) -> TimelineViewModel {
-        makeSelectionViewModel(timelineController: TimelineControllerMock(.init(timelineItems: items)),
-                               userIndicatorController: userIndicatorController)
+    private func makeReactionEffectsViewModel(item: RoomTimelineItemProtocol, timelineController: TimelineControllerMock? = nil) -> TimelineViewModel {
+        let userSettings = UserSettings.mock()
+        userSettings.app.reactionCelebrationsEnabled = true
+        return makeViewModel(timelineController: timelineController ?? TimelineControllerMock(.init(timelineItems: [item])), userSettings: userSettings)
     }
     
-    private func makeSelectionViewModel(timelineController: TimelineControllerProtocol,
-                                        userIndicatorController: UserIndicatorControllerProtocol = UserIndicatorControllerMock()) -> TimelineViewModel {
-        let appSettings = AppSettings.volatile()
-        appSettings.messageMultiSelectEnabled = true
-        return makeViewModel(timelineController: timelineController,
-                             userIndicatorController: userIndicatorController,
-                             appSettings: appSettings)
+    /// Starts a selection the way the app does, by choosing Forward on the item.
+    private func startSelection(_ itemID: TimelineItemIdentifier, in viewModel: TimelineViewModel) {
+        viewModel.process(viewAction: .handleTimelineItemMenuAction(itemID: itemID, action: .forward(itemID: itemID)))
     }
 }
 
@@ -939,6 +1116,12 @@ private extension TextRoomTimelineItem {
                   sender: .init(id: "@\(sender):server.com", displayName: sender),
                   content: .init(body: text),
                   properties: RoomTimelineItemProperties(reactions: reactions, orderedReadReceipts: addReadReceipts))
+    }
+    
+    func reacted(by senderID: String, at timestamp: Date) -> TextRoomTimelineItem {
+        var item = self
+        item.properties.reactions = [AggregatedReaction(accountOwnerID: "bob", key: "🎉", senders: [ReactionSender(id: senderID, timestamp: timestamp)])]
+        return item
     }
 }
 

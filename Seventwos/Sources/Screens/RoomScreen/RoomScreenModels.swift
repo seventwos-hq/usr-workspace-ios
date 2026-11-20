@@ -15,11 +15,10 @@ enum RoomScreenViewModelAction: Equatable {
     case displayThread(threadRootEventID: String, focussedEventID: String)
     case displayPinnedEventsTimeline
     case displayRoomDetails
-    case displayCall(isVoiceCall: Bool)
     case removeComposerFocus
     case displayKnockRequests
     case displayRoom(roomID: String, via: [String])
-    case displayMessageForwarding(MessageForwardingItem)
+    case displayMessageForwarding(MessageForwardingPayload)
     case stopLiveLocationSharing
     case displayLiveLocation
 }
@@ -57,6 +56,8 @@ struct RoomScreenViewState: BindableState {
     
     /// Whether or not starting a call is supported.
     var isCallingEnabled = true
+    /// Whether or not calls are using the experimental native implementation.
+    var isNativeCallingEnabled = false
     /// Whether or not the user is allowed to join calls in this room.
     var canJoinCall = false
     /// Whether or not this room currently has a call in progress.

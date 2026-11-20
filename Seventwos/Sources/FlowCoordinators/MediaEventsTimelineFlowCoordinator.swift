@@ -11,7 +11,7 @@ import Foundation
 
 enum MediaEventsTimelineFlowCoordinatorAction {
     case viewInRoomTimeline(TimelineItemIdentifier)
-    case displayMessageForwarding(MessageForwardingItem)
+    case displayMessageForwarding(MessageForwardingPayload)
     case finished
 }
 
@@ -79,7 +79,6 @@ class MediaEventsTimelineFlowCoordinator: FlowCoordinatorProtocol {
                                                                         userSession: userSession,
                                                                         mediaPlayerProvider: MediaPlayerProvider(),
                                                                         appMediator: flowParameters.appMediator,
-                                                                        appSettings: flowParameters.appSettings,
                                                                         analytics: flowParameters.analytics,
                                                                         emojiProvider: flowParameters.emojiProvider,
                                                                         linkMetadataProvider: flowParameters.linkMetadataProvider,
@@ -92,8 +91,8 @@ class MediaEventsTimelineFlowCoordinator: FlowCoordinatorProtocol {
             .sink { [weak self] action in
                 guard let self else { return }
                 switch action {
-                case .displayMessageForwarding(let forwardingItem):
-                    actionsSubject.send(.displayMessageForwarding(forwardingItem))
+                case .displayMessageForwarding(let forwardingPayload):
+                    actionsSubject.send(.displayMessageForwarding(forwardingPayload))
                 case .viewInRoomTimeline(let itemID):
                     navigationStackCoordinator.pop(animated: false)
                     actionsSubject.send(.viewInRoomTimeline(itemID))

@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import MatrixRustSDK
 import MatrixRustSDKMocks
 @testable import Seventwos
 import Testing
@@ -15,11 +16,12 @@ import Testing
 struct AuthenticationServiceTests {
     var client: ClientSDKMock!
     var encryption: EncryptionSDKMock!
-    var userSessionStore: UserSessionStoreMock!
+    var userSessionManager: UserSessionManagerMock!
     var encryptionKeyProvider: MockEncryptionKeyProvider!
+    var targetContext: Target.Context!
     var service: AuthenticationService!
     
-    @Test
+    @Test("A server without OAuth can be logged in to with a password")
     mutating func passwordLogin() async throws {
         try await setup(serverNameOrBaseURL: "example.com")
         
@@ -36,15 +38,14 @@ struct AuthenticationServiceTests {
         switch await service.login(username: "alice", password: "12345678", initialDeviceName: nil, deviceID: nil) {
         case .success:
             #expect(client.loginUsernamePasswordInitialDeviceNameDeviceIdCallsCount == 1)
-            #expect(userSessionStore.userSessionForSessionDirectoriesPassphraseCallsCount == 1)
-            #expect(userSessionStore.userSessionForSessionDirectoriesPassphraseReceivedArguments?.passphrase ==
-                encryptionKeyProvider.generateKey().base64EncodedString())
+            #expect(userSessionManager.userSessionForSessionDirectoriesPassphraseCallsCount == 1)
+            #expect(userSessionManager.userSessionForSessionDirectoriesPassphraseReceivedArguments?.passphrase == encryptionKeyProvider.generateKey())
         case .failure(let error):
             Issue.record("Unexpected failure: \(error)")
         }
     }
     
-    @Test
+    @Test("Configuring a server that supports OAuth for login")
     mutating func configureLoginWithOAuth() async throws {
         try await setup()
         
@@ -54,7 +55,7 @@ struct AuthenticationServiceTests {
         #expect(service.homeserver.value == .mockMatrixDotOrg)
     }
     
-    @Test
+    @Test("Configuring a server that supports OAuth for registration")
     mutating func configureRegisterWithOAuth() async throws {
         try await setup()
         
@@ -64,7 +65,7 @@ struct AuthenticationServiceTests {
         #expect(service.homeserver.value == .mockMatrixDotOrg)
     }
     
-    @Test
+    @Test("Configuring a server that doesn't support registration fails and keeps the default login state")
     mutating func configureRegisterNoSupport() async throws {
         let serverNameOrBaseURL = "example.com"
         try await setup(serverNameOrBaseURL: serverNameOrBaseURL)
@@ -74,11 +75,44 @@ struct AuthenticationServiceTests {
         }
         
         #expect(service.flow == .login)
-        #expect(service.homeserver.value == .init(accountProvider: AppSettings.volatile().defaultAccountProvider,
+        #expect(service.homeserver.value == .init(accountProvider: .managed(serverName: "matrix.org", baseURL: "https://matrix-client.matrix.org"),
                                                   loginMode: .unknown))
     }
     
-    @Test
+    @Test("The OAuth prompt depends on the server and the authentication flow",
+          arguments: [("matrix.org", AuthenticationFlow.login, OAuthPrompt.consent),
+                      ("matrix.org", .register, .create),
+                      ("company.com", .register, .consent)])
+    mutating func oAuthPrompt(serverName: String, flow: AuthenticationFlow, expectedPrompt: OAuthPrompt) async throws {
+        try await setup(serverNameOrBaseURL: serverName)
+        try await service.configure(for: serverName, flow: flow).get()
+        
+        _ = try await service.urlForOAuthLogin(loginHint: nil).get()
+        
+        #expect(client.urlForOauthOauthConfigurationPromptLoginHintDeviceIdAdditionalScopesReceivedArguments?.prompt == expectedPrompt)
+    }
+    
+    @Test("Resetting the service restores the default login state")
+    mutating func reset() async throws {
+        // Given an authentication service configured with a custom account provider.
+        try await setup(serverNameOrBaseURL: "company.com")
+        try await service.configure(for: "company.com", flow: .register).get()
+        
+        #expect(service.flow == .register)
+        #expect(service.homeserver.value == .mockOAuth)
+        #expect(targetContext.statePublisher.value.authenticationHomeserver == .discovered("https://matrix.company.com"))
+        
+        // When resetting the service.
+        service.reset()
+        
+        // Then the default state should be restored.
+        #expect(service.flow == .login)
+        #expect(service.homeserver.value == .init(accountProvider: .managed(serverName: "matrix.org", baseURL: "https://matrix-client.matrix.org"),
+                                                  loginMode: .unknown))
+        #expect(targetContext.statePublisher.value.authenticationHomeserver == .undiscovered)
+    }
+    
+    @Test("A Classic app account's secrets are imported when logging in as that user")
     mutating func classicAppAccountSecretsBundleIsUsed() async throws {
         // Given an authentication service with an Element Classic account for Alice.
         try await setup(classicAppAccounts: [.mockAlice])
@@ -94,7 +128,7 @@ struct AuthenticationServiceTests {
         #expect(encryption.importSecretsBundleSecretsBundleCalled)
     }
     
-    @Test
+    @Test("A Classic app account's secrets aren't imported when they're unavailable")
     mutating func classicAppAccountSecretsBundleIsIgnoredWhenUnavailable() async throws {
         // Given an authentication service with an Element Classic account for Alice
         // which isn't configured with any available secrets.
@@ -111,7 +145,7 @@ struct AuthenticationServiceTests {
         #expect(!encryption.importSecretsBundleSecretsBundleCalled)
     }
     
-    @Test
+    @Test("A Classic app account's secrets aren't imported when logging in as a different user")
     mutating func classicAppAccountSecretsBundleIsIgnoredForDifferentUser() async throws {
         // Given an authentication service with an Element Classic account for Dan.
         try await setup(classicAppAccounts: [.mockDan])
@@ -139,19 +173,21 @@ struct AuthenticationServiceTests {
         encryption = EncryptionSDKMock()
         client.encryptionReturnValue = encryption
         
-        userSessionStore = UserSessionStoreMock(.init())
+        userSessionManager = UserSessionManagerMock(.init())
         encryptionKeyProvider = MockEncryptionKeyProvider()
+        targetContext = .mock
         
         let classicAppManager = ClassicAppManagerMock(.init(accounts: classicAppAccounts,
                                                             availableSecrets: availableSecrets,
                                                             secretsBundle: SecretsBundleWithUserIdSDKMock()))
         
-        service = AuthenticationService(userSessionStore: userSessionStore,
+        service = AuthenticationService(userSessionManager: userSessionManager,
                                         encryptionKeyProvider: encryptionKeyProvider,
                                         classicAppManager: classicAppManager,
                                         clientFactory: clientFactory,
                                         appSettings: .volatile(),
-                                        appHooks: AppHooks())
+                                        appHooks: AppHooks(),
+                                        targetContext: targetContext)
         
         if let classicAppAccount = service.classicAppAccount {
             await service.setupClassicAppAccountState()

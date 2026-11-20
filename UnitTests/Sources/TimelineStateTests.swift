@@ -6,8 +6,8 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-import OrderedCollections
 @testable import Seventwos
+import OrderedCollections
 import Testing
 
 @MainActor

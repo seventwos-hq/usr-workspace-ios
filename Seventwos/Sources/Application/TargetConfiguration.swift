@@ -42,7 +42,7 @@ nonisolated enum Target: String {
     func configure(logLevel: LogLevel,
                    traceLogPacks: Set<TraceLogPack>,
                    sentryURL: URL?,
-                   rageshakeURL: RemotePreference<RageshakeConfiguration>,
+                   keychainController: KeychainControllerProtocol,
                    appHooks: AppHooks) -> ConfigurationResult {
         let tracingConfiguration = Tracing.buildConfiguration(logLevel: logLevel,
                                                               traceLogPacks: traceLogPacks,
@@ -62,20 +62,76 @@ nonisolated enum Target: String {
         
         MXLog.configure(currentTarget: rawValue)
         
-        let hookCancellable = rageshakeURL.publisher
-            .sink { _ in
-                appHooks.tracingHook.update(tracingConfiguration, with: rageshakeURL)
+        let context = Context(keychainController: keychainController)
+        let hookCancellable = context.statePublisher
+            .sink { context in
+                appHooks.tracingHook.update(tracingConfiguration, for: context)
             }
         
-        return ConfigurationResult(hookCancellable: hookCancellable)
+        return ConfigurationResult(context: context, hookCancellable: hookCancellable)
     }
     
-    /// The result of calling ``configure(logLevel:traceLogPacks:sentryURL:)``.
+    /// The context that the target's configuration follows.
+    final nonisolated class Context {
+        private let keychainController: KeychainControllerProtocol
+        private let stateSubject: CurrentValueSubject<State, Never>
+        
+        var statePublisher: CurrentValuePublisher<State, Never> {
+            stateSubject.asCurrentValuePublisher()
+        }
+        
+        private var authenticationHomeserver: State.AuthenticationHomeserver? {
+            didSet { update() }
+        }
+        
+        init(keychainController: KeychainControllerProtocol) {
+            self.keychainController = keychainController
+            // This runs before logging is configured, which collectSessionHomeservers() is safe for.
+            stateSubject = .init(State(sessionHomeservers: keychainController.collectSessionHomeservers(), authenticationHomeserver: nil))
+        }
+        
+        /// Reloads the context from storage, which should be called whenever an account is added or removed.
+        func update() {
+            stateSubject.send(State(sessionHomeservers: keychainController.collectSessionHomeservers(), authenticationHomeserver: authenticationHomeserver))
+        }
+        
+        /// Updates the context for a new authentication flow.
+        func startAuthentication() {
+            authenticationHomeserver = .undiscovered
+        }
+        
+        /// Updates the context with the state of the authentication flow.
+        func updateAuthentication(homeserver: String) {
+            authenticationHomeserver = .discovered(homeserver)
+        }
+        
+        /// Updates the context for a finished authentication flow.
+        func finishAuthentication() {
+            authenticationHomeserver = nil
+        }
+        
+        nonisolated struct State: Equatable, Sendable {
+            /// The homeserver of the authentication flow.
+            nonisolated enum AuthenticationHomeserver: Equatable, Sendable {
+                case undiscovered
+                case discovered(String)
+            }
+            
+            /// The homeservers of the sessions in the keychain.
+            var sessionHomeservers: Set<String>
+            /// The homeserver of the authentication flow, or `nil` when the flow isn't shown.
+            var authenticationHomeserver: AuthenticationHomeserver?
+        }
+    }
+    
+    /// The result of calling ``configure(logLevel:traceLogPacks:sentryURL:keychainController:appHooks:)``.
     /// This must be stored - see the docs on the configure method to learn more.
     struct ConfigurationResult {
+        let context: Context
         private let hookCancellable: AnyCancellable
         
-        init(hookCancellable: AnyCancellable) {
+        init(context: Context, hookCancellable: AnyCancellable) {
+            self.context = context
             self.hookCancellable = hookCancellable
         }
     }

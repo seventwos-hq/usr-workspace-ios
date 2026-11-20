@@ -11,7 +11,7 @@ permissions: {}
 jobs:
   update-project:
     name: Update Xcode project
-    runs-on: macos-26-intel
+    runs-on: xcode-27
     timeout-minutes: 20
     permissions:
       contents: write
@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.head_ref }}
-          token: ${{ github.token }}
+          token: ${{ secrets.ELEMENT_BOT_TOKEN }}
           # We need to push any changes to the project.
           persist-credentials: true
 
@@ -45,15 +45,15 @@ jobs:
         run: xcodegen
 
       - name: Resolve dependencies and build the project
-        run: xcodebuild -scheme Seventwos -project Seventwos.xcodeproj -destination 'generic/platform=iOS Simulator' build
+        run: xcodebuild -scheme Seventwos -project Seventwos.xcodeproj -destination 'generic/platform=iOS Simulator' ARCHS=arm64 build
 
       - name: Update Acknowledgements
-        run: swift-package-list Seventwos.xcodeproj --requires-license --ignore-package compound-ios --ignore-package compound-design-tokens --ignore-package matrix-rich-text-editor-swift --ignore-package element-call-swift --output-type settings-bundle --output-path Seventwos/SupportingFiles
+        run: swift-package-list Seventwos.xcodeproj --requires-license --ignore-package compound-ios --ignore-package compound-design-tokens --ignore-package matrix-rich-text-editor-swift --ignore-package element-call-swift --ignore-package element-call-ios --ignore-package matrix-rust-rtc --output-type settings-bundle --output-path Seventwos/SupportingFiles
 
       - name: Commit and push changes
         run: |
-          git config user.name "GitHub Actions"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "Element CI"
+          git config user.email "ci@element.io"
           git add Seventwos.xcodeproj/project.pbxproj
           git add Seventwos.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
           git add Seventwos/SupportingFiles/Settings.bundle

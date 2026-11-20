@@ -33,7 +33,7 @@ struct ReactionsSummaryView: View {
             ScrollViewReader { scrollView in
                 HStack(spacing: 8) {
                     ForEach(reactions) { reaction in
-                        ReactionSummaryButton(reaction: reaction, highlighted: selectedReactionKey == reaction.key) { key in
+                        ReactionSummaryButton(reaction: reaction, highlighted: selectedReactionKey == reaction.key, mediaProvider: mediaProvider) { key in
                             selectedReactionKey = key
                         }
                     }
@@ -72,7 +72,9 @@ struct ReactionsSummaryView: View {
 private struct ReactionSummaryButton: View {
     let reaction: AggregatedReaction
     let highlighted: Bool
+    let mediaProvider: MediaProviderProtocol?
     let action: (String) -> Void
+    @ScaledMetric(relativeTo: .compound.headingSM) private var imageSize = 22
     
     var body: some View {
         Button { action(reaction.key) } label: { label }
@@ -80,23 +82,22 @@ private struct ReactionSummaryButton: View {
     
     var label: some View {
         HStack(spacing: 4) {
-            Text(reaction.displayKey)
+            ReactionKeyView(reaction: reaction, mediaProvider: mediaProvider, size: imageSize)
                 .font(.compound.headingSM)
                 .foregroundColor(textColor)
-            if reaction.count > 1 {
-                Text(String(reaction.count))
-                    .font(.compound.headingSM)
-                    .foregroundColor(textColor)
-            }
+            Text(String(reaction.count))
+                .font(.compound.headingSM)
+                .foregroundColor(textColor)
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
-        .background(highlighted ? Color.compound.bgActionPrimaryRest : .clear, in: Capsule())
+        .background(highlighted ? Color.compound.bgSubtlePrimary : .clear, in: Capsule(style: .circular))
+        .overlay(Capsule(style: .circular).strokeBorder(highlighted ? Color.compound.borderInteractivePrimary : .clear))
         .accessibilityElement(children: .combine)
     }
     
     var textColor: Color {
-        highlighted ? Color.compound.textOnSolidPrimary : Color.compound.textSecondary
+        highlighted ? Color.compound.textPrimary : Color.compound.textSecondary
     }
 }
 

@@ -20,6 +20,8 @@ class ServerSelectionScreenViewModel: ServerSelectionScreenViewModelType, Server
     
     /// Debounces autocompletion from user input
     private var debouncedAutocompleteTask: Task<Void, Never>?
+    /// The confirmation in progress, used to ignore repeated confirms (e.g. Continue then keyboard Done).
+    private var confirmTask: Task<Void, Never>?
     
     private var actionsSubject: PassthroughSubject<ServerSelectionScreenViewModelAction, Never> = .init()
     
@@ -65,11 +67,15 @@ class ServerSelectionScreenViewModel: ServerSelectionScreenViewModelType, Server
             guard state.textField != textField else { return } // stop the infinite loop
             state.textField = textField
         case .confirm:
-            switch state.mode {
-            case .userInput:
-                Task { await configureHomeserver() }
-            case .picker:
-                Task { await pickServer() }
+            guard confirmTask == nil else { return }
+            confirmTask = Task {
+                switch state.mode {
+                case .userInput:
+                    await configureHomeserver()
+                case .picker:
+                    await pickServer()
+                }
+                confirmTask = nil
             }
         case .clearFooterError:
             clearFooterError()
@@ -191,6 +197,35 @@ class ServerSelectionScreenViewModel: ServerSelectionScreenViewModelType, Server
     private func clearFooterError() {
         guard state.footerErrorMessage != nil else { return }
         withSeventwosAnimation { state.footerErrorMessage = nil }
+    }
+    
+    /// Given the textfield's complete text from the user's latest keystroke, evaluate if it matches any historical
+    /// server prefixes. If there's a match, update the text value with the complete server, highlighting the portion
+    /// that was appended.
+    private func didUpdateTextFromKeystroke(userProvidedString: String) {
+        let new = userProvidedString
+        let lowerNew = new.lowercased()
+        
+        guard
+            lowerNew.isEmpty == false,
+            let expectedMatch = homeserverHistoryManager.server(matchingPrefix: lowerNew),
+            lowerNew != expectedMatch
+        else { return }
+        
+        let appendage = expectedMatch.dropFirst(new.count)
+        let newInput = "\(new)\(appendage)"
+        
+        let selectionRange = newInput.index(newInput.startIndex, offsetBy: new.count)..<newInput.endIndex
+        
+        // debounce a delay to assure that we are not in the same swiftui update cycle
+        debouncedAutocompleteTask?.cancel()
+        debouncedAutocompleteTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(10))
+            guard Task.isCancelled == false else { return }
+            context.serverNameOrBaseURL = newInput
+            context.viewState.textField?.text = newInput
+            context.serverNameOrBaseURLSelection = TextSelection(range: selectionRange)
+        }
     }
     
     /// Given the textfield's complete text from the user's latest keystroke, evaluate if it matches any historical

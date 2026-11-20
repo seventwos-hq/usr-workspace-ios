@@ -8,7 +8,6 @@
 
 import Combine
 import Kingfisher
-@testable import Seventwos
 import SwiftUI
 import Testing
 

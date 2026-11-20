@@ -11,12 +11,18 @@ import MatrixRustSDK
 
 /// A wrapper around `ClientBuilder` to allow for mocked clients to be injected into tests.
 nonisolated struct ClientFactory: ClientFactoryProtocol {
+    private let clientBuilderFactory: ClientBuilderFactoryProtocol
+    
+    init(clientBuilderFactory: ClientBuilderFactoryProtocol = ClientBuilderFactory()) {
+        self.clientBuilderFactory = clientBuilderFactory
+    }
+    
     // MARK: Authentication
     
     #if IS_MAIN_APP
     func makeAuthenticationClient(serverNameOrBaseURL: String,
                                   sessionDirectories: SessionDirectories,
-                                  passphrase: String,
+                                  passphrase: Data,
                                   clientSessionDelegate: ClientSessionDelegate,
                                   appSettings: AppSettings,
                                   appHooks: AppHooks) async throws -> ClientProtocol {
@@ -26,9 +32,11 @@ nonisolated struct ClientFactory: ClientFactoryProtocol {
                                       appHooks: appHooks,
                                       enableOnlySignedDeviceIsolationMode: appSettings.enableOnlySignedDeviceIsolationMode,
                                       threadsEnabled: appSettings.threadsEnabled)
-            .enableAutomaticBackPagination(enableAutomaticBackPagination: appSettings.automaticBackPaginationEnabled)
+            .enableAutomaticBackPagination(enableAutomaticBackPagination: true)
             .sqliteStore(config: .init(dataPath: sessionDirectories.dataPath, cachePath: sessionDirectories.cachePath)
-                .passphrase(passphrase: passphrase))
+                .highEntropyPassphrase(passphrase: passphrase, base64Variant: .padded))
+            .withSearchIndexStore(path: sessionDirectories.dataPath,
+                                  key: passphrase.base64EncodedString())
             .serverNameOrHomeserverUrl(serverNameOrUrl: serverNameOrBaseURL)
         
         return try await build(builder, for: .authentication, appHooks: appHooks)
@@ -64,12 +72,12 @@ nonisolated struct ClientFactory: ClientFactoryProtocol {
                                       appHooks: appHooks,
                                       enableOnlySignedDeviceIsolationMode: appSettings.enableOnlySignedDeviceIsolationMode,
                                       threadsEnabled: appSettings.threadsEnabled)
-            .enableAutomaticBackPagination(enableAutomaticBackPagination: appSettings.automaticBackPaginationEnabled)
+            .enableAutomaticBackPagination(enableAutomaticBackPagination: true)
             .sqliteStore(config: .init(dataPath: credentials.restorationToken.sessionDirectories.dataPath,
                                        cachePath: credentials.restorationToken.sessionDirectories.cachePath)
-                    .passphrase(passphrase: credentials.restorationToken.passphrase))
+                    .highEntropyPassphrase(passphrase: credentials.restorationToken.passphrase, base64Variant: .padded))
             .withSearchIndexStore(path: credentials.restorationToken.sessionDirectories.dataPath,
-                                  password: credentials.restorationToken.passphrase)
+                                  key: credentials.restorationToken.passphrase.base64EncodedString())
             .homeserverUrl(url: homeserverURL)
         
         return try await build(builder, for: .restoration(credentials.restorationToken.session, .all), appHooks: appHooks)
@@ -79,7 +87,7 @@ nonisolated struct ClientFactory: ClientFactoryProtocol {
     func makeNSEClient(credentials: KeychainCredentials,
                        roomID: String,
                        clientSessionDelegate: ClientSessionDelegate,
-                       appSettings: CommonSettingsProtocol,
+                       userSettings: UserSettings,
                        appHooks: AppHooks) async throws -> ClientProtocol {
         let homeserverURL = credentials.restorationToken.session.homeserverUrl
         
@@ -88,14 +96,14 @@ nonisolated struct ClientFactory: ClientFactoryProtocol {
                                       discoverSlidingSync: false,
                                       sessionDelegate: clientSessionDelegate,
                                       appHooks: appHooks,
-                                      enableOnlySignedDeviceIsolationMode: appSettings.enableOnlySignedDeviceIsolationMode,
+                                      enableOnlySignedDeviceIsolationMode: userSettings.app.enableOnlySignedDeviceIsolationMode,
                                       requestTimeout: 15000,
                                       maxRequestRetryTime: 5000,
-                                      threadsEnabled: appSettings.threadsEnabled)
+                                      threadsEnabled: userSettings.app.threadsEnabled)
             .systemIsMemoryConstrained()
             .sqliteStore(config: .init(dataPath: credentials.restorationToken.sessionDirectories.dataPath,
                                        cachePath: credentials.restorationToken.sessionDirectories.cachePath)
-                    .passphrase(passphrase: credentials.restorationToken.passphrase))
+                    .highEntropyPassphrase(passphrase: credentials.restorationToken.passphrase, base64Variant: .padded))
             .homeserverUrl(url: homeserverURL)
         
         return try await build(builder, for: .restoration(credentials.restorationToken.session, .one(roomId: roomID)), appHooks: appHooks)
@@ -113,7 +121,7 @@ nonisolated struct ClientFactory: ClientFactoryProtocol {
                                  requestTimeout: UInt64? = 30000,
                                  maxRequestRetryTime: UInt64? = nil,
                                  threadsEnabled: Bool) -> ClientBuilder {
-        var builder = ClientBuilder()
+        var builder = clientBuilderFactory.makeBuilder()
             .crossProcessLockConfig(crossProcessLockConfig: .multiProcess(holderName: InfoPlistReader.main.bundleIdentifier))
             .setSessionDelegate(sessionDelegate: sessionDelegate)
             .userAgent(userAgent: UserAgentBuilder.makeASCIIUserAgent())
@@ -159,13 +167,15 @@ nonisolated struct ClientFactory: ClientFactoryProtocol {
     private func build(_ builder: ClientBuilder,
                        for mode: BuildMode,
                        appHooks: AppHooks) async throws -> ClientProtocol {
-        let client: ClientProtocol = try await appHooks.clientFactoryHook.configure(builder, toRestore: mode.session).build()
+        var client: ClientProtocol = try await appHooks.clientFactoryHook.configure(builder, toRestore: mode.session).build()
         
         switch mode {
         case .authentication:
+            // The hook is run in the authentication service.
             break
         case .restoration(let session, let roomLoadSettings):
             try await client.restoreSessionWith(session: session, roomLoadSettings: roomLoadSettings)
+            client = await appHooks.clientFactoryHook.updateRestoredClient(client)
         case .classicAppAccount:
             break
         }

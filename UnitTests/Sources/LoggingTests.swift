@@ -9,7 +9,6 @@
 import Foundation
 @testable import MatrixRustSDK
 import MatrixRustSDKMocks
-@testable import Seventwos
 import Testing
 
 @MainActor
@@ -73,6 +72,7 @@ final class LoggingTests {
         let roomSummary = RoomSummary(room: RoomSDKMock(),
                                       id: "myroomid",
                                       joinRequestType: nil,
+                                      isJoined: true,
                                       name: roomName,
                                       isDirect: true,
                                       isSpace: false,

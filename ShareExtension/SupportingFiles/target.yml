@@ -78,7 +78,7 @@ targets:
         MARKETING_VERSION: $(MARKETING_VERSION)
         CURRENT_PROJECT_VERSION: $(CURRENT_PROJECT_VERSION)
         DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
-        SWIFT_VERSION: 6.2
+        SWIFT_VERSION: 6
         SWIFT_APPROACHABLE_CONCURRENCY: YES
 
     sources:
@@ -89,9 +89,11 @@ targets:
     - path: ../../Seventwos/Sources/AppHooks/Hooks/TracingHook.swift
     - path: ../../Seventwos/Sources/AppHooks/Hooks/ClientFactoryHook.swift
     - path: ../../Seventwos/Sources/AppHooks/Hooks/RemoteSettingsHook.swift
+    - path: ../../Seventwos/Sources/AppHooks/Hooks/UserSessionHook.swift
     - path: ../../Components/Secrets/Secrets.swift
     - path: ../../Seventwos/Sources/Application/Settings
-    - path: ../../Seventwos/Sources/Application/TargetConfiguration.swift
+    - path: ../../Seventwos/Sources/Application/Target.swift
+    - path: ../../Seventwos/Sources/Generated/Strings.swift
     - path: ../../Seventwos/Sources/Services/AlertTones/NotificationTone.swift
     - path: ../../Seventwos/Sources/Services/Keychain/KeychainController.swift
     - path: ../../Seventwos/Sources/Services/Keychain/KeychainControllerProtocol.swift

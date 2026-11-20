@@ -48,12 +48,12 @@ struct TemplateScreen_Previews: PreviewProvider, TestablePreview {
     static let incrementedViewModel = makeViewModel(counterValue: 1)
     
     static var previews: some View {
-        SeventwosNavigationStack {
+        ElementNavigationStack {
             TemplateScreen(context: viewModel.context)
         }
         .previewDisplayName("Initial")
         
-        SeventwosNavigationStack {
+        ElementNavigationStack {
             TemplateScreen(context: incrementedViewModel.context)
         }
         .previewDisplayName("Incremented")

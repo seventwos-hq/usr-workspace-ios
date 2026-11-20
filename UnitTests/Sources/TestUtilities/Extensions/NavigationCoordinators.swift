@@ -5,8 +5,8 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-import Foundation
 @testable import Seventwos
+import Foundation
 
 // Sendable projections of the navigation coordinators' non-Sendable coordinator references,
 // allowing the tests to `observe` them and wait for navigation with `deferFulfillment`.

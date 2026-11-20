@@ -4,3 +4,6 @@
 
 # Move file header template in project shared data folder
 cp IDETemplateMacros.plist ../../Seventwos.xcodeproj/xcshareddata/
+
+# Rewrite schemes the way Xcode saves them
+swift normalizeSchemes.swift ../../Seventwos.xcodeproj/xcshareddata/xcschemes

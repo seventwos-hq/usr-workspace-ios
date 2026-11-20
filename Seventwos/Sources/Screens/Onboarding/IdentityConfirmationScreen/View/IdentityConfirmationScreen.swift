@@ -22,9 +22,18 @@ struct IdentityConfirmationScreen: View {
     
     var body: some View {
         FullscreenDialog(topPadding: UIConstants.startScreenBreakerScreenTopPadding) {
-            screenHeader
+            if context.viewState.isUnverified {
+                screenHeader
+            }
         } bottomContent: {
-            actionButtons
+            if context.viewState.isUnverified {
+                actionButtons
+            }
+        }
+        .overlay {
+            if !context.viewState.isUnverified {
+                ProgressView()
+            }
         }
         .toolbar { toolbar }
         .background()
@@ -64,24 +73,22 @@ struct IdentityConfirmationScreen: View {
     private var actionButtons: some View {
         VStack(spacing: 16) {
             if let availableActions = context.viewState.availableActions {
-                if availableActions.contains(.interactiveVerification) {
-                    Button(L10n.screenIdentityConfirmationUseAnotherDevice) {
-                        context.send(viewAction: .otherDevice)
-                    }
-                    .buttonStyle(.compound(.primary))
+                Button(L10n.screenIdentityConfirmationUseAnotherDevice) {
+                    context.send(viewAction: .otherDevice)
                 }
+                .buttonStyle(.compound(.primary))
+                .disabled(!availableActions.contains(.interactiveVerification))
                 
-                if availableActions.contains(.recovery) {
-                    Button(L10n.screenIdentityConfirmationUseRecoveryKey) {
-                        context.send(viewAction: .recoveryKey)
-                    }
-                    .buttonStyle(.compound(.primary))
+                Button(L10n.screenIdentityConfirmationUseRecoveryKey) {
+                    context.send(viewAction: .recoveryKey)
                 }
+                .buttonStyle(.compound(.primary))
+                .disabled(!availableActions.contains(.recovery))
                 
                 Button(L10n.screenIdentityConfirmationCannotConfirm) {
                     context.send(viewAction: .reset)
                 }
-                .buttonStyle(.compound(.secondary))
+                .buttonStyle(.compound(availableActions.isEmpty ? .primary : .secondary))
             } else {
                 Button { /* Placeholder button, there is no action */ } label: {
                     Label {
@@ -107,7 +114,7 @@ struct IdentityConfirmationScreen: View {
     @ToolbarContentBuilder
     var toolbar: some ToolbarContent {
         ToolbarItem(placement: .destructiveAction) {
-            Button(L10n.actionSignout) {
+            Button(L10n.screenIdentityConfirmationSignOut) {
                 context.send(viewAction: .logout)
             }
         }
@@ -120,6 +127,7 @@ struct IdentityConfirmationScreen: View {
 struct IdentityConfirmationScreen_Previews: PreviewProvider, TestablePreview {
     static var viewModel = makeViewModel()
     static var loadingViewModel = makeViewModel(recoveryState: .unknown)
+    static var noOptionsViewModel = makeViewModel(recoveryState: .disabled, hasDevicesToVerifyAgainst: false)
     
     static var previews: some View {
         SeventwosNavigationStack {
@@ -134,15 +142,21 @@ struct IdentityConfirmationScreen_Previews: PreviewProvider, TestablePreview {
             IdentityConfirmationScreen(context: loadingViewModel.context)
         }
         .previewDisplayName("Loading")
+        
+        SeventwosNavigationStack {
+            IdentityConfirmationScreen(context: noOptionsViewModel.context)
+        }
+        .previewDisplayName("No options")
+        .snapshotPreferences(expect: noOptionsViewModel.context.observe(\.viewState.availableActions).map { $0 != nil })
     }
     
-    static func makeViewModel(recoveryState: SecureBackupRecoveryState = .enabled) -> IdentityConfirmationScreenViewModel {
+    static func makeViewModel(recoveryState: SecureBackupRecoveryState = .enabled,
+                              hasDevicesToVerifyAgainst: Bool = true) -> IdentityConfirmationScreenViewModel {
         let clientProxy = ClientProxyMock(.init())
+        clientProxy.hasDevicesToVerifyAgainstReturnValue = .success(hasDevicesToVerifyAgainst)
         let userSession = UserSessionMock(.init(clientProxy: clientProxy))
         userSession.sessionSecurityStatePublisher = CurrentValuePublisher<SessionSecurityState, Never>(.init(verificationState: .unverified, recoveryState: recoveryState))
         
-        return IdentityConfirmationScreenViewModel(userSession: userSession,
-                                                   appSettings: .volatile(),
-                                                   userIndicatorController: UserIndicatorControllerMock())
+        return IdentityConfirmationScreenViewModel(userSession: userSession, userSettings: .mock())
     }
 }

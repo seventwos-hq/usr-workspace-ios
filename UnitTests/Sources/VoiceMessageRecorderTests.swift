@@ -8,7 +8,6 @@
 
 import Combine
 import Foundation
-@testable import Seventwos
 import Testing
 
 @MainActor
@@ -209,7 +208,8 @@ struct VoiceMessageRecorderTests {
         // If there is no recording file, an error is expected
         audioRecorder.audioFileURL = nil
         guard case .failure(.missingRecordingFile) = await voiceMessageRecorder.sendVoiceMessage(timelineController: timelineController,
-                                                                                                 audioConverter: audioConverter) else {
+                                                                                                 audioConverter: audioConverter,
+                                                                                                 inReplyToEventID: nil) else {
             Issue.record("An error is expected")
             return
         }
@@ -223,7 +223,8 @@ struct VoiceMessageRecorderTests {
         
         let timelineController = TimelineControllerMock(.init())
         guard case .failure(.failedSendingVoiceMessage) = await voiceMessageRecorder.sendVoiceMessage(timelineController: timelineController,
-                                                                                                      audioConverter: audioConverter) else {
+                                                                                                      audioConverter: audioConverter,
+                                                                                                      inReplyToEventID: nil) else {
             Issue.record("An error is expected")
             return
         }
@@ -239,9 +240,10 @@ struct VoiceMessageRecorderTests {
         
         let timelineProxy = TimelineProxyMock()
         let timelineController = TimelineControllerMock(.init(timelineProxy: timelineProxy))
-        timelineProxy.sendVoiceMessageUrlAudioInfoWaveformRequestHandleReturnValue = .failure(.sdkError(SDKError.generic))
+        timelineProxy.sendVoiceMessageUrlAudioInfoWaveformInReplyToEventIDRequestHandleReturnValue = .failure(.sdkError(SDKError.generic))
         guard case .failure(.failedSendingVoiceMessage) = await voiceMessageRecorder.sendVoiceMessage(timelineController: timelineController,
-                                                                                                      audioConverter: audioConverter) else {
+                                                                                                      audioConverter: audioConverter,
+                                                                                                      inReplyToEventID: nil) else {
             Issue.record("An error is expected")
             return
         }
@@ -258,9 +260,10 @@ struct VoiceMessageRecorderTests {
         
         let timelineProxy = TimelineProxyMock()
         let timelineController = TimelineControllerMock(.init(timelineProxy: timelineProxy))
-        timelineProxy.sendVoiceMessageUrlAudioInfoWaveformRequestHandleReturnValue = .failure(.sdkError(SDKError.generic))
+        timelineProxy.sendVoiceMessageUrlAudioInfoWaveformInReplyToEventIDRequestHandleReturnValue = .failure(.sdkError(SDKError.generic))
         guard case .failure(.failedSendingVoiceMessage) = await voiceMessageRecorder.sendVoiceMessage(timelineController: timelineController,
-                                                                                                      audioConverter: audioConverter) else {
+                                                                                                      audioConverter: audioConverter,
+                                                                                                      inReplyToEventID: nil) else {
             Issue.record("An error is expected")
             return
         }
@@ -279,9 +282,10 @@ struct VoiceMessageRecorderTests {
         // If the media upload fails
         let timelineProxy = TimelineProxyMock()
         let timelineController = TimelineControllerMock(.init(timelineProxy: timelineProxy))
-        timelineProxy.sendVoiceMessageUrlAudioInfoWaveformRequestHandleReturnValue = .failure(.sdkError(SDKError.generic))
+        timelineProxy.sendVoiceMessageUrlAudioInfoWaveformInReplyToEventIDRequestHandleReturnValue = .failure(.sdkError(SDKError.generic))
         guard case .failure(.failedSendingVoiceMessage) = await voiceMessageRecorder.sendVoiceMessage(timelineController: timelineController,
-                                                                                                      audioConverter: audioConverter) else {
+                                                                                                      audioConverter: audioConverter,
+                                                                                                      inReplyToEventID: nil) else {
             Issue.record("An error is expected")
             return
         }
@@ -313,8 +317,9 @@ struct VoiceMessageRecorderTests {
             #expect(destination.pathExtension == "ogg")
         }
         
-        timelineProxy.sendVoiceMessageUrlAudioInfoWaveformRequestHandleClosure = { url, audioInfo, waveform, _ in
+        timelineProxy.sendVoiceMessageUrlAudioInfoWaveformInReplyToEventIDRequestHandleClosure = { url, audioInfo, waveform, inReplyToEventID, _ in
             #expect(url == convertedFileURL)
+            #expect(inReplyToEventID == "$replied-to-event")
             #expect(audioInfo.duration == audioRecorder.currentTime)
             #expect(audioInfo.size == convertedFileSize)
             #expect(audioInfo.mimetype == "audio/ogg")
@@ -323,13 +328,15 @@ struct VoiceMessageRecorderTests {
             return .success(())
         }
         
-        guard case .success = await voiceMessageRecorder.sendVoiceMessage(timelineController: timelineController, audioConverter: audioConverter) else {
+        guard case .success = await voiceMessageRecorder.sendVoiceMessage(timelineController: timelineController,
+                                                                          audioConverter: audioConverter,
+                                                                          inReplyToEventID: "$replied-to-event") else {
             Issue.record("A success is expected")
             return
         }
         
         #expect(audioConverter.convertToOpusOggSourceURLDestinationURLCalled)
-        #expect(timelineProxy.sendVoiceMessageUrlAudioInfoWaveformRequestHandleCalled)
+        #expect(timelineProxy.sendVoiceMessageUrlAudioInfoWaveformInReplyToEventIDRequestHandleCalled)
         
         // the converted file must have been deleted
         if let convertedFileURL {

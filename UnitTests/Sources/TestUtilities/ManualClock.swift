@@ -5,6 +5,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import Foundation
 import Synchronization
 
 /// A clock whose sleeps only finish when the test advances it.
@@ -26,6 +27,7 @@ final nonisolated class ManualClock: Clock {
     }
     
     private struct Sleep {
+        let id: UUID
         let deadline: Instant
         let continuation: CheckedContinuation<Void, any Error>
     }
@@ -45,28 +47,34 @@ final nonisolated class ManualClock: Clock {
         state.withLock { $0.now }
     }
     
+    /// Whether a sleep is waiting on ``advance(by:)``, which is how a test asserts that a timer has
+    /// been cancelled rather than advancing the clock and watching for what it doesn't do.
+    var hasPendingSleep: Bool {
+        state.withLock { $0.sleep != nil }
+    }
+    
     /// Suspends until ``advance(by:)`` moves the clock to `deadline`, or the calling task is
     /// cancelled, in which case this throws a `CancellationError`. Deadlines that have already
     /// passed return without suspending. `tolerance` is ignored.
     func sleep(until deadline: Instant, tolerance: Duration? = nil) async throws {
+        let id = UUID()
+        
         try await withTaskCancellationHandler {
             try Task.checkCancellation()
             
             try await withCheckedThrowingContinuation { continuation in
-                switch schedule(deadline: deadline, continuation: continuation) {
+                switch schedule(id: id, deadline: deadline, continuation: continuation) {
                 case .elapsed:
                     continuation.resume()
+                case .cancelled:
+                    continuation.resume(throwing: CancellationError())
                 case .scheduled(let duration, let observer):
                     observer?.resume(returning: duration)
-                    
-                    // Cancellation that landed while scheduling found nothing to cancel.
-                    if Task.isCancelled {
-                        cancelSleep()
-                    }
                 }
             }
         } onCancel: {
-            cancelSleep()
+            // Runs straight away for a task that arrives cancelled, while another task's sleep may be pending.
+            cancelSleep(id: id)
         }
     }
     
@@ -116,21 +124,29 @@ final nonisolated class ManualClock: Clock {
     private enum Scheduling {
         /// The deadline had already passed, the sleep doesn't suspend.
         case elapsed
+        /// The task was cancelled before the sleep could be stored, the sleep doesn't suspend.
+        case cancelled
         /// The sleep is now pending, along with the ``waitForScheduledSleep()`` caller to notify.
         case scheduled(Duration, observer: CheckedContinuation<Duration, Never>?)
     }
     
     /// Stores the sleep's continuation, handing the caller whatever needs resuming so that it
     /// happens outside of the lock.
-    private func schedule(deadline: Instant, continuation: CheckedContinuation<Void, any Error>) -> Scheduling {
+    private func schedule(id: UUID, deadline: Instant, continuation: CheckedContinuation<Void, any Error>) -> Scheduling {
         state.withLock { state in
             guard deadline > state.now else {
                 return .elapsed
             }
             
+            // Checked under the lock so a cancelled task never occupies the single slot, not even
+            // briefly: its handler either already ran (and the flag is visible here) or will run after.
+            guard !Task.isCancelled else {
+                return .cancelled
+            }
+            
             precondition(state.sleep == nil, "The clock only supports a single pending sleep.")
             
-            state.sleep = Sleep(deadline: deadline, continuation: continuation)
+            state.sleep = Sleep(id: id, deadline: deadline, continuation: continuation)
             
             let observer = state.sleepObserver
             state.sleepObserver = nil
@@ -139,9 +155,12 @@ final nonisolated class ManualClock: Clock {
         }
     }
     
-    private func cancelSleep() {
+    private func cancelSleep(id: UUID) {
         let sleep = state.withLock { state -> Sleep? in
-            let sleep = state.sleep
+            guard let sleep = state.sleep, sleep.id == id else {
+                return nil
+            }
+            
             state.sleep = nil
             return sleep
         }

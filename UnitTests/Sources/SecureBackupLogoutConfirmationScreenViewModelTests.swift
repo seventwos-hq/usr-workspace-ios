@@ -27,7 +27,9 @@ struct SecureBackupLogoutConfirmationScreenViewModelTests {
         reachabilitySubject = CurrentValueSubject<HomeserverReachability, Never>(.reachable)
         
         viewModel = SecureBackupLogoutConfirmationScreenViewModel(secureBackupController: secureBackupController,
-                                                                  homeserverReachabilityPublisher: reachabilitySubject.asCurrentValuePublisher())
+                                                                  homeserverReachabilityPublisher: reachabilitySubject.asCurrentValuePublisher(),
+                                                                  learnMoreURL: "https://example.org/encryption",
+                                                                  mode: .saveRecoveryKey)
     }
     
     @Test
@@ -85,5 +87,118 @@ struct SecureBackupLogoutConfirmationScreenViewModelTests {
         let deferred = deferFulfillment(context.observe(\.viewState.mode)) { $0 == .offline }
         reachabilitySubject.send(.unreachable)
         try await deferred.fulfill()
+    }
+    
+    @Test
+    func titleSubtitleAndIconFollowTheMode() {
+        func state(_ mode: SecureBackupLogoutConfirmationScreenViewMode) -> SecureBackupLogoutConfirmationScreenViewState {
+            .init(learnMoreURL: "https://example.org/encryption", mode: mode)
+        }
+        
+        #expect(state(.saveRecoveryKey).title == L10n.screenSignoutSaveRecoveryKeyTitle)
+        #expect(state(.saveRecoveryKey).subtitle == L10n.screenSignoutSaveRecoveryKeySubtitle)
+        #expect(state(.saveRecoveryKey).icon.keyPath == \.info)
+        
+        #expect(state(.noRecovery).title == L10n.screenSignoutRecoveryDisabledTitle)
+        #expect(state(.noRecovery).subtitle == L10n.screenSignoutRecoveryDisabledSubtitle)
+        #expect(state(.noRecovery).icon.keyPath == \.errorSolid)
+        
+        #expect(state(.waitingToStart(hasStalled: false)).title == L10n.screenSignoutKeyBackupOngoingTitle)
+        #expect(state(.backupOngoing(progress: 0.5)).subtitle == L10n.screenSignoutKeyBackupOngoingSubtitle)
+        #expect(state(.offline).title == L10n.screenSignoutKeyBackupOfflineTitle)
+        #expect(state(.offline).subtitle == L10n.screenSignoutKeyBackupOfflineSubtitle)
+        #expect(state(.offline).icon.keyPath == \.keyOffSolid)
+    }
+    
+    @Test
+    func noRecoveryLogsOutStraightAway() async throws {
+        let viewModel = SecureBackupLogoutConfirmationScreenViewModel(secureBackupController: secureBackupController,
+                                                                      homeserverReachabilityPublisher: reachabilitySubject.asCurrentValuePublisher(),
+                                                                      learnMoreURL: "https://example.org/encryption",
+                                                                      mode: .noRecovery)
+        #expect(viewModel.context.viewState.mode == .noRecovery)
+        
+        let deferred = deferFulfillment(viewModel.actions) { action in
+            if case .logout = action {
+                true
+            } else {
+                false
+            }
+        }
+        viewModel.context.send(viewAction: .logout)
+        try await deferred.fulfill()
+        
+        // There are no keys to wait for without a recovery key, and the question stays as it is.
+        #expect(viewModel.context.viewState.mode == .noRecovery)
+        #expect(secureBackupController.waitForKeyBackupUploadUploadStateSubjectCallsCount == 0)
+    }
+    
+    @Test
+    func cancelIsForwarded() async throws {
+        let deferred = deferFulfillment(viewModel.actions) { action in
+            if case .cancel = action {
+                true
+            } else {
+                false
+            }
+        }
+        context.send(viewAction: .cancel)
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    func generatingARecoveryKeyIsForwarded() async throws {
+        let deferred = deferFulfillment(viewModel.actions) { action in
+            if case .generateRecoveryKey = action {
+                true
+            } else {
+                false
+            }
+        }
+        context.send(viewAction: .generateRecoveryKey)
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    func checkingTheRecoveryKeyIsForwarded() async throws {
+        let deferred = deferFulfillment(viewModel.actions) { action in
+            if case .checkRecoveryKey = action {
+                true
+            } else {
+                false
+            }
+        }
+        context.send(viewAction: .checkRecoveryKey)
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    func continuingWithANewRecoveryKeyWaitsForTheBackupFirst() async throws {
+        let viewModel = SecureBackupLogoutConfirmationScreenViewModel(secureBackupController: secureBackupController,
+                                                                      homeserverReachabilityPublisher: reachabilitySubject.asCurrentValuePublisher(),
+                                                                      learnMoreURL: "https://example.org/encryption",
+                                                                      mode: .noRecovery)
+        secureBackupController.waitForKeyBackupUploadUploadStateSubjectClosure = { _ in .success(()) }
+        
+        let deferredLogout = deferFulfillment(viewModel.actions) { action in
+            if case .logout = action {
+                true
+            } else {
+                false
+            }
+        }
+        let deferredContinuation = deferFulfillment(viewModel.actions) { action in
+            if case let .generateRecoveryKey(continuation) = action {
+                continuation.yield()
+                return true
+            }
+            return false
+        }
+        viewModel.context.send(viewAction: .generateRecoveryKey)
+        try await deferredContinuation.fulfill()
+        try await deferredLogout.fulfill()
+        
+        // Unlike removing the device without a recovery key, the new keys have to be uploaded.
+        #expect(secureBackupController.waitForKeyBackupUploadUploadStateSubjectCallsCount == 1)
     }
 }

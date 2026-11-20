@@ -13,7 +13,7 @@ import SwiftState
 enum OnboardingFlowCoordinatorAction {
     case requestPresentation(animated: Bool)
     case dismiss
-    case logoutConfirmed
+    case logoutWithoutConfirmation
 }
 
 class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
@@ -21,9 +21,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
     private let appLockService: AppLockServiceProtocol
     private let analyticsService: AnalyticsServiceProtocol
     private let appMediator: AppMediatorProtocol
-    private let appSettings: AppSettings
-    private let appHooks: AppHooks
-    private let notificationManager: NotificationManagerProtocol
+    private let userSettings: UserSettings
     private let userIndicatorController: UserIndicatorControllerProtocol
     private let windowManager: WindowManagerProtocol
     private var isNewLogin: Bool
@@ -69,9 +67,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
         self.appLockService = appLockService
         analyticsService = flowParameters.analytics
         appMediator = flowParameters.appMediator
-        appSettings = flowParameters.appSettings
-        appHooks = flowParameters.appHooks
-        notificationManager = flowParameters.notificationManager
+        userSettings = flowParameters.userSession.userSettings
         userIndicatorController = flowParameters.userIndicatorController
         windowManager = flowParameters.windowManager
         
@@ -94,7 +90,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
                       value == .verified,
                       stateMachine.state == .identityConfirmation else { return }
                 
-                appSettings.hasRunIdentityConfirmationOnboarding = true
+                userSettings.account.hasRunIdentityConfirmationOnboarding = true
                 stateMachine.tryEvent(.nextSkippingIdentityConfirmed)
             }
     }
@@ -129,11 +125,11 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
     
     private var requiresVerification: Bool {
         // We want to make sure onboarding finishes but also every time the user becomes unverified (e.g. account reset)
-        !appSettings.hasRunIdentityConfirmationOnboarding || userSession.sessionSecurityStatePublisher.value.verificationState == .unverified
+        !userSettings.account.hasRunIdentityConfirmationOnboarding || userSession.sessionSecurityStatePublisher.value.verificationState == .unverified
     }
     
     private var requiresAppLockSetup: Bool {
-        appSettings.appLockIsMandatory && !appLockService.isEnabled
+        userSettings.app.appLockIsMandatory && !appLockService.isEnabled
     }
     
     private var requiresAnalyticsSetup: Bool {
@@ -141,7 +137,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private var requiresNotificationsSetup: Bool {
-        !appSettings.hasRunNotificationPermissionsOnboarding
+        !userSettings.app.hasRunNotificationPermissionsOnboarding
     }
     
     private func configureStateMachine() {
@@ -225,7 +221,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
                 presentNotificationPermissionsScreen()
             case (_, _, .finished):
                 isNewLogin = false
-                appSettings.hasSignedInBefore = true
+                userSettings.app.hasSignedInBefore = true
                 actionsSubject.send(.dismiss)
                 stateMachine.tryState(.initial)
             case (.finished, _, .initial):
@@ -247,9 +243,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private func presentIdentityConfirmationScreen() {
-        let parameters = IdentityConfirmationScreenCoordinatorParameters(userSession: userSession,
-                                                                         appSettings: appSettings,
-                                                                         userIndicatorController: userIndicatorController)
+        let parameters = IdentityConfirmationScreenCoordinatorParameters(userSession: userSession, userSettings: userSettings)
         
         let coordinator = IdentityConfirmationScreenCoordinator(parameters: parameters)
         coordinator.actionsPublisher.sink { [weak self] action in
@@ -261,12 +255,12 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
             case .recoveryKey:
                 presentRecoveryKeyScreen()
             case .skip:
-                appSettings.hasRunIdentityConfirmationOnboarding = true
+                userSettings.account.hasRunIdentityConfirmationOnboarding = true
                 stateMachine.tryEvent(.nextSkippingIdentityConfirmed)
-            case .reset:
-                startEncryptionResetFlow()
-            case .logoutConfirmed:
-                actionsSubject.send(.logoutConfirmed)
+            case .reset(let hasConfirmationOptions):
+                Task { await startEncryptionResetFlow(hasConfirmationOptions: hasConfirmationOptions) }
+            case .logoutWithoutConfirmation:
+                actionsSubject.send(.logoutWithoutConfirmation)
             }
         }
         .store(in: &cancellables)
@@ -281,8 +275,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
         
         let parameters = SessionVerificationScreenCoordinatorParameters(sessionVerificationControllerProxy: sessionVerificationController,
                                                                         flow: .deviceInitiator,
-                                                                        appSettings: appSettings,
-                                                                        mediaProvider: userSession.mediaProvider)
+                                                                        userSession: userSession)
         
         let coordinator = SessionVerificationScreenCoordinator(parameters: parameters)
         
@@ -303,8 +296,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
                                                                             userIndicatorController: userIndicatorController,
                                                                             isModallyPresented: false)
         
-        let coordinator = appHooks.recoveryKeyScreenHook.makeCoordinator(parameters: parameters,
-                                                                         homeserver: userSession.clientProxy.homeserver)
+        let coordinator = userSession.userHooks.recoveryKeyScreenHook.makeCoordinator(parameters: parameters, isCheckingKey: false)
         
         coordinator.actions
             .sink { action in
@@ -318,19 +310,36 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
         presentCoordinator(coordinator)
     }
     
-    private func startEncryptionResetFlow() {
+    /// Treats a failure as the user having encrypted rooms, so the warning is never softer than it should be.
+    private func hasEncryptedRooms() async -> Bool {
+        let indicatorID = "\(Self.self)-EncryptedRooms"
+        userIndicatorController.submitIndicator(.init(id: indicatorID, type: .modal, title: L10n.commonLoading, persistent: true), delay: .milliseconds(200))
+        defer { userIndicatorController.retractIndicatorWithId(indicatorID) }
+        
+        guard case let .success(hasEncryptedRooms) = await userSession.clientProxy.hasEncryptedRooms() else {
+            return true
+        }
+        return hasEncryptedRooms
+    }
+    
+    private func startEncryptionResetFlow(hasConfirmationOptions: Bool) async {
+        let mode = await EncryptionResetScreenMode(hasConfirmationOptions: hasConfirmationOptions,
+                                                   hasEncryptedRooms: hasEncryptedRooms)
+        
         let resetNavigationStackCoordinator = NavigationStackCoordinator()
         let coordinator = EncryptionResetFlowCoordinator(parameters: .init(userSession: userSession,
                                                                            appMediator: appMediator,
-                                                                           appSettings: appSettings,
-                                                                           appHooks: appHooks,
                                                                            userIndicatorController: userIndicatorController,
                                                                            navigationStackCoordinator: resetNavigationStackCoordinator,
-                                                                           windowManger: windowManager))
+                                                                           windowManger: windowManager,
+                                                                           mode: mode))
         
         coordinator.actionsPublisher.sink { [weak self] action in
             guard let self else { return }
             switch action {
+            case .logoutWithoutConfirmation:
+                navigationStackCoordinator.setSheetCoordinator(nil)
+                actionsSubject.send(.logoutWithoutConfirmation)
             case .resetComplete:
                 // Moving to next state is handled by the global session verification listener
                 navigationStackCoordinator.setSheetCoordinator(nil)
@@ -385,7 +394,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private func presentAnalyticsPromptScreen() {
-        let coordinator = AnalyticsPromptScreenCoordinator(analytics: analyticsService, termsURL: appSettings.analyticsTermsURL)
+        let coordinator = AnalyticsPromptScreenCoordinator(analytics: analyticsService, termsURL: userSettings.app.analyticsTermsURL)
         
         coordinator.actions
             .sink { [weak self] action in
@@ -401,14 +410,14 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private func presentNotificationPermissionsScreen() {
-        let coordinator = NotificationPermissionsScreenCoordinator(parameters: .init(notificationManager: notificationManager))
+        let coordinator = NotificationPermissionsScreenCoordinator(parameters: .init(notificationService: userSession.notificationService))
         
         coordinator.actions
             .sink { [weak self] action in
                 guard let self else { return }
                 switch action {
                 case .done:
-                    appSettings.hasRunNotificationPermissionsOnboarding = true
+                    userSettings.app.hasRunNotificationPermissionsOnboarding = true
                     stateMachine.tryEvent(.next)
                 }
             }

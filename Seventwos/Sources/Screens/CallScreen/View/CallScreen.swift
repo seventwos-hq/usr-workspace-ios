@@ -119,6 +119,9 @@ struct CallView: UIViewRepresentable {
             configuration.allowsPictureInPictureMediaPlayback = true
             configuration.applicationNameForUserAgent = InfoPlistReader.main.bundleDisplayName
             
+            let appName = InfoPlistReader.main.bundleDisplayName
+            configuration.applicationNameForUserAgent = configuration.applicationNameForUserAgent.map { "\($0) \(appName)" } ?? appName
+            
             if let script = viewModelContext.viewState.script {
                 let userScript = WKUserScript(source: script, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
                 configuration.userContentController.addUserScript(userScript)
@@ -396,7 +399,7 @@ struct CallScreen_Previews: PreviewProvider {
         
         roomProxy.elementCallWidgetDriverDeviceIDReturnValue = widgetDriver
         
-        return CallScreenViewModel(elementCallService: ElementCallServiceMock(.init()),
+        return CallScreenViewModel(userSession: UserSessionMock(.init()),
                                    configuration: .init(roomProxy: roomProxy,
                                                         clientProxy: clientProxy,
                                                         clientID: "org.seventwos.workspace",
@@ -405,7 +408,6 @@ struct CallScreen_Previews: PreviewProvider {
                                                         voiceOnly: false,
                                                         colorScheme: .light),
                                    allowPictureInPicture: false,
-                                   appSettings: .volatile(),
                                    analyticsService: AnalyticsServiceMock(.init()))
     }
 }

@@ -20,7 +20,7 @@ struct CI: ParsableCommand {
                                                         ReleaseToGitHub.self
                                                     ])
     
-    static let defaultOSVersion = "26.5"
+    static let defaultOSVersion = "27.0"
     static let testOutputDirectory = "test_output"
     
     /// Reads the `MARKETING_VERSION` from `project.yml`.
@@ -146,8 +146,8 @@ struct CI: ParsableCommand {
     // MARK: - Git
     
     static func gitConfigureGlobals() async throws {
-        try await CI.run(.name("git"), ["config", "--global", "user.name", "GitHub Actions"])
-        try await CI.run(.name("git"), ["config", "--global", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"])
+        try await CI.run(.name("git"), ["config", "--global", "user.name", "Element CI"])
+        try await CI.run(.name("git"), ["config", "--global", "user.email", "ci@element.io"])
     }
     
     static func gitRepositoryURL() async throws -> String {

@@ -77,7 +77,7 @@ targets:
         CURRENT_PROJECT_VERSION: $(CURRENT_PROJECT_VERSION)
         DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
         SWIFT_OBJC_INTERFACE_HEADER_NAME: GeneratedInterface-Swift.h
-        SWIFT_VERSION: 6.2
+        SWIFT_VERSION: 6
         SWIFT_APPROACHABLE_CONCURRENCY: YES
         OTHER_SWIFT_FLAGS:
         - "-DIS_NSE"
@@ -89,9 +89,10 @@ targets:
     - path: ../../Seventwos/Sources/AppHooks/Hooks/TracingHook.swift
     - path: ../../Seventwos/Sources/AppHooks/Hooks/ClientFactoryHook.swift
     - path: ../../Seventwos/Sources/AppHooks/Hooks/RemoteSettingsHook.swift
+    - path: ../../Seventwos/Sources/AppHooks/Hooks/UserSessionHook.swift
     - path: ../../Components/Secrets/Secrets.swift
     - path: ../../Seventwos/Sources/Application/Settings
-    - path: ../../Seventwos/Sources/Application/TargetConfiguration.swift
+    - path: ../../Seventwos/Sources/Application/Target.swift
     - path: ../../Seventwos/Sources/Generated/Strings.swift
     - path: ../../Seventwos/Sources/Other/Avatars.swift
     - path: ../../Seventwos/Sources/Other/CurrentValuePublisher.swift
@@ -124,6 +125,7 @@ targets:
     - path: ../../Seventwos/Sources/Services/AlertTones/NotificationTone.swift
     - path: ../../Seventwos/Sources/Services/AlertTones/NotificationToneManager.swift
     - path: ../../Seventwos/Sources/Services/AlertTones/NotificationToneManagerProtocol.swift
+    - path: ../../Seventwos/Sources/Services/Client/ClientBuilderFactory.swift
     - path: ../../Seventwos/Sources/Services/Client/ClientFactory.swift
     - path: ../../Seventwos/Sources/Services/Client/ClientFactoryProtocol.swift
     - path: ../../Seventwos/Sources/Services/ElementCall/ElementCallServiceConstants.swift

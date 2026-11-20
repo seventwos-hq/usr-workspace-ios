@@ -1,0 +1,49 @@
+//
+// Copyright 2026 Element Creations Ltd.
+//
+// SPDX-License-Identifier: AGPL-3.0-only.
+// Please see LICENSE files in the repository root for full details.
+//
+
+import Foundation
+
+nonisolated struct UserHooks: Sendable {
+    let roomScreenHook: RoomScreenHookProtocol
+    let roomDetailsScreenHook: RoomDetailsScreenHookProtocol
+    let roomMemberDetailsScreenHook: RoomMemberDetailsScreenHookProtocol
+    let userProfileScreenHook: UserProfileScreenHookProtocol
+    let recoveryKeyScreenHook: RecoveryKeyScreenHookProtocol
+    let startChatScreenHook: StartChatScreenHookProtocol
+    let createRoomScreenHook: CreateRoomScreenHookProtocol
+    let inviteUsersScreenHook: InviteUsersScreenHookProtocol
+    let securityAndPrivacyScreenHook: SecurityAndPrivacyScreenHookProtocol
+    let oAuthAccountSettingsPresenterHook: OAuthAccountSettingsPresenterHookProtocol
+    let bugReportHook: BugReportHookProtocol
+    let developerOptionsScreenHook: DeveloperOptionsScreenHookProtocol
+    
+    init(roomScreenHook: RoomScreenHookProtocol = DefaultRoomScreenHook(),
+         roomDetailsScreenHook: RoomDetailsScreenHookProtocol = DefaultRoomDetailsScreenHook(),
+         roomMemberDetailsScreenHook: RoomMemberDetailsScreenHookProtocol = DefaultRoomMemberDetailsScreenHook(),
+         userProfileScreenHook: UserProfileScreenHookProtocol = DefaultUserProfileScreenHook(),
+         recoveryKeyScreenHook: RecoveryKeyScreenHookProtocol = DefaultRecoveryKeyScreenHook(),
+         startChatScreenHook: StartChatScreenHookProtocol = DefaultStartChatScreenHook(),
+         createRoomScreenHook: CreateRoomScreenHookProtocol = DefaultCreateRoomScreenHook(),
+         inviteUsersScreenHook: InviteUsersScreenHookProtocol = DefaultInviteUsersScreenHook(),
+         securityAndPrivacyScreenHook: SecurityAndPrivacyScreenHookProtocol = DefaultSecurityAndPrivacyScreenHook(),
+         oAuthAccountSettingsPresenterHook: OAuthAccountSettingsPresenterHookProtocol = DefaultOAuthAccountSettingsPresenterHook(),
+         bugReportHook: BugReportHookProtocol = DefaultBugReportHook(),
+         developerOptionsScreenHook: DeveloperOptionsScreenHookProtocol = DefaultDeveloperOptionsScreenHook()) {
+        self.roomScreenHook = roomScreenHook
+        self.roomDetailsScreenHook = roomDetailsScreenHook
+        self.roomMemberDetailsScreenHook = roomMemberDetailsScreenHook
+        self.userProfileScreenHook = userProfileScreenHook
+        self.recoveryKeyScreenHook = recoveryKeyScreenHook
+        self.startChatScreenHook = startChatScreenHook
+        self.createRoomScreenHook = createRoomScreenHook
+        self.inviteUsersScreenHook = inviteUsersScreenHook
+        self.securityAndPrivacyScreenHook = securityAndPrivacyScreenHook
+        self.oAuthAccountSettingsPresenterHook = oAuthAccountSettingsPresenterHook
+        self.bugReportHook = bugReportHook
+        self.developerOptionsScreenHook = developerOptionsScreenHook
+    }
+}

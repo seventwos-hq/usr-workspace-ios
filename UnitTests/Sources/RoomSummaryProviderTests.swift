@@ -17,7 +17,7 @@ final class RoomSummaryProviderTests {
                                                                                   .all(filters: [.space, .invite])]),
                                                                    .deduplicateVersions]
     
-    var appSettings: AppSettings!
+    var userSettings: UserSettings!
     var roomList: RoomListSDKMock!
     var dynamicEntriesController: RoomListDynamicEntriesControllerSDKMock!
     var roomSummaryProvider: RoomSummaryProvider!
@@ -43,6 +43,38 @@ final class RoomSummaryProviderTests {
         // Then that filter should be added to the default Rust filters.
         #expect(dynamicEntriesController.setFilterKindCallsCount == 2)
         #expect(dynamicEntriesController.setFilterKindReceivedInvocations.last == .all(filters: [.all(filters: [.favourite, .joined])] + baseFilters))
+    }
+    
+    @Test
+    func joinedRoomsOnlyRustFilters() async {
+        // Given a new room provider that only includes joined rooms.
+        setup(includesOnlyJoinedRooms: true)
+        await Task.yield()
+        
+        // Then the joined filter should be added to the default Rust filters.
+        #expect(dynamicEntriesController.setFilterKindReceivedInvocations.last == .all(filters: baseFilters + [.joined]))
+        
+        // When searching.
+        roomSummaryProvider.setFilter(.search(query: "Foundation"))
+        await Task.yield()
+        
+        // Then the search should be restricted to joined rooms too.
+        #expect(dynamicEntriesController.setFilterKindReceivedInvocations.last == .all(filters: [.normalizedMatchRoomName(pattern: "Foundation")] + baseFilters + [.joined]))
+    }
+    
+    @Test
+    func filterSetBeforeTheRoomListIsKept() async {
+        // Given a new room provider that is filtered before it has a room list.
+        setup(setsRoomList: false)
+        roomSummaryProvider.setFilter(.search(query: "Foundation"))
+        
+        // When setting its room list.
+        roomSummaryProvider.setRoomList(roomList)
+        await Task.yield()
+        
+        // Then the filter should be applied instead of the default one.
+        #expect(dynamicEntriesController.setFilterKindCallsCount == 1)
+        #expect(dynamicEntriesController.setFilterKindReceivedInvocations.last == .all(filters: [.normalizedMatchRoomName(pattern: "Foundation")] + baseFilters))
     }
     
     @Test
@@ -148,8 +180,8 @@ final class RoomSummaryProviderTests {
                        includesOnlyJoinedRooms: Bool = false,
                        roomListPageSize: UInt32 = 100,
                        setsRoomList: Bool = true) {
-        appSettings = AppSettings.volatile()
-        appSettings.lowPriorityFilterEnabled = isLowPriorityFilterEnabled
+        userSettings = UserSettings.mock()
+        userSettings.app.lowPriorityFilterEnabled = isLowPriorityFilterEnabled
         
         let stateEventStringBuilder = RoomStateEventStringBuilder(userID: "@me:matrix.org")
         let attributedStringBuilder = AttributedStringBuilder(mentionBuilder: MentionBuilder())
@@ -164,7 +196,7 @@ final class RoomSummaryProviderTests {
                                                   includesOnlyJoinedRooms: includesOnlyJoinedRooms,
                                                   roomListPageSize: roomListPageSize,
                                                   notificationSettings: NotificationSettingsProxyMock(with: .init()),
-                                                  appSettings: appSettings)
+                                                  userSettings: userSettings)
         
         dynamicEntriesController = RoomListDynamicEntriesControllerSDKMock()
         dynamicEntriesController.setFilterKindReturnValue = true
@@ -173,7 +205,26 @@ final class RoomSummaryProviderTests {
         roomList = RoomListSDKMock()
         roomList.entriesWithDynamicAdaptersPageSizeListenerReturnValue = dynamicAdaptersResult
         roomList.loadingStateListenerReturnValue = .some(.init(state: .notLoaded, stateStream: TaskHandleSDKMock()))
-        roomSummaryProvider.setRoomList(roomList)
+        
+        if setsRoomList {
+            roomSummaryProvider.setRoomList(roomList)
+        }
+    }
+    
+    private func loadRooms(count: Int) async throws {
+        let listener = try #require(roomList.entriesWithDynamicAdaptersPageSizeListenerReceivedArguments?.listener)
+        let rooms = (0..<count).map { index in
+            let room = RoomSDKMock()
+            room.idReturnValue = "!room\(index):matrix.org"
+            room.latestEventReturnValue = LatestEventValue.none
+            // Only the room count matters, so placeholder summaries avoid mocking a whole RoomInfo.
+            room.roomInfoThrowableError = TestError.missingRoomInfo
+            return room
+        }
+        
+        let deferred = deferFulfillment(roomSummaryProvider.roomListPublisher) { $0.count == count }
+        listener.onUpdate(roomEntriesUpdate: [.append(values: rooms)])
+        try await deferred.fulfill()
     }
     
     private func loadRooms(count: Int) async throws {

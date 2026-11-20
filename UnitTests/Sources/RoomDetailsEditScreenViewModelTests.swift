@@ -7,7 +7,6 @@
 //
 
 import MatrixRustSDK
-@testable import Seventwos
 import Testing
 
 @MainActor
@@ -190,7 +189,7 @@ struct RoomDetailsEditScreenViewModelTests {
         appMediator = AppMediatorMock(.init())
         viewModel = .init(roomProxy: JoinedRoomProxyMock(roomProxyConfiguration),
                           userSession: UserSessionMock(.init()),
-                          mediaUploadingPreprocessor: MediaUploadingPreprocessor(appSettings: .volatile()),
+                          mediaUploadingPreprocessor: MediaUploadingPreprocessor(userSettings: .mock()),
                           appMediator: appMediator,
                           userIndicatorController: userIndicatorController)
     }

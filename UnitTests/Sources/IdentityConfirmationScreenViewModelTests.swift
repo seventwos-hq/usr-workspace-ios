@@ -19,17 +19,25 @@ struct IdentityConfirmationScreenViewModelTests {
     }
     
     @Test
-    mutating func logoutShowsConfirmation() async throws {
+    mutating func logoutSignsOutWithoutConfirmation() async throws {
         setupViewModel()
         
-        #expect(context.alertInfo == nil)
-        
+        let deferred = deferFulfillment(viewModel.actionsPublisher) { $0 == .logoutWithoutConfirmation }
         context.send(viewAction: .logout)
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    mutating func isUnverifiedListensToSecurityState() async throws {
+        setupViewModel(verificationState: .unknown)
+        #expect(!context.viewState.isUnverified)
         
-        let alertInfo = try #require(context.alertInfo)
+        let deferredFailure = deferFailure(context.observe(\.viewState.isUnverified), timeout: .milliseconds(300)) { $0 }
+        securityStateSubject.send(.init(verificationState: .verified, recoveryState: .unknown))
+        try await deferredFailure.fulfill()
         
-        let deferred = deferFulfillment(viewModel.actionsPublisher) { $0 == .logoutConfirmed }
-        alertInfo.primaryButton.action?()
+        let deferred = deferFulfillment(context.observe(\.viewState.isUnverified)) { $0 }
+        securityStateSubject.send(.init(verificationState: .unverified, recoveryState: .disabled))
         try await deferred.fulfill()
     }
     
@@ -91,16 +99,44 @@ struct IdentityConfirmationScreenViewModelTests {
     mutating func availableActionsWhileSecurityStateIsPending() async throws {
         setupViewModel(hasDevicesToVerifyAgainst: true)
         
-        let deferred = deferFailure(context.observe(\.viewState.availableActions), timeout: .seconds(1)) { $0 != nil }
+        let deferred = deferFailure(context.observe(\.viewState.availableActions), timeout: .milliseconds(300)) { $0 != nil }
         try await deferred.fulfill()
         
         #expect(context.viewState.availableActions == nil)
     }
     
+    // MARK: - Reset
+    
+    @Test
+    mutating func resetWithoutOptions() async throws {
+        setupViewModel(hasDevicesToVerifyAgainst: false)
+        
+        let loaded = deferFulfillment(context.observe(\.viewState.availableActions)) { $0 != nil }
+        securityStateSubject.send(.init(verificationState: .unverified, recoveryState: .disabled))
+        try await loaded.fulfill()
+        
+        let deferred = deferFulfillment(viewModel.actionsPublisher) { $0 == .reset(hasConfirmationOptions: false) }
+        context.send(viewAction: .reset)
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    mutating func resetWithOptions() async throws {
+        setupViewModel(hasDevicesToVerifyAgainst: true)
+        
+        let loaded = deferFulfillment(context.observe(\.viewState.availableActions)) { $0 != nil }
+        securityStateSubject.send(.init(verificationState: .unverified, recoveryState: .enabled))
+        try await loaded.fulfill()
+        
+        let deferred = deferFulfillment(viewModel.actionsPublisher) { $0 == .reset(hasConfirmationOptions: true) }
+        context.send(viewAction: .reset)
+        try await deferred.fulfill()
+    }
+    
     // MARK: - Private
     
-    mutating func setupViewModel(hasDevicesToVerifyAgainst: Bool = true) {
-        let initialState = SessionSecurityState(verificationState: .unverified, recoveryState: .unknown)
+    mutating func setupViewModel(verificationState: SessionVerificationState = .unverified, hasDevicesToVerifyAgainst: Bool = true) {
+        let initialState = SessionSecurityState(verificationState: verificationState, recoveryState: .unknown)
         securityStateSubject = CurrentValueSubject<SessionSecurityState, Never>(initialState)
         
         let clientProxy = ClientProxyMock(.init())
@@ -108,8 +144,6 @@ struct IdentityConfirmationScreenViewModelTests {
         let userSession = UserSessionMock(.init(clientProxy: clientProxy))
         userSession.sessionSecurityStatePublisher = securityStateSubject.asCurrentValuePublisher()
         
-        viewModel = IdentityConfirmationScreenViewModel(userSession: userSession,
-                                                        appSettings: .volatile(),
-                                                        userIndicatorController: UserIndicatorControllerMock())
+        viewModel = IdentityConfirmationScreenViewModel(userSession: userSession, userSettings: .mock())
     }
 }

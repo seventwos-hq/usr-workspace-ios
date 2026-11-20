@@ -6,18 +6,34 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-import Foundation
+import Compound
+import SwiftUI
 
 enum SecureBackupRecoveryKeyScreenViewModelAction {
-    case done(mode: SecureBackupRecoveryKeyScreenViewMode)
-    case cancel
+    case complete
+}
+
+/// Where the screen is being shown, which decides what its final button says.
+enum SecureBackupRecoveryKeyScreenPresentationContext {
+    case standard
+    /// The screen is part of removing the device, after which the removal carries on.
+    case deviceRemoval
 }
 
 enum SecureBackupRecoveryKeyScreenViewMode {
     case setupRecovery
     case changeRecovery
     case fixRecovery
+    /// The user already has a recovery key and wants to make sure that it is correct.
+    case checkRecovery
     case unknown
+}
+
+/// What is known about the recovery key the user has entered to check it.
+nonisolated enum SecureBackupRecoveryKeyValidity: Equatable {
+    case unchecked
+    case checking
+    case invalid
 }
 
 struct SecureBackupRecoveryKeyScreenViewState: BindableState {
@@ -25,45 +41,95 @@ struct SecureBackupRecoveryKeyScreenViewState: BindableState {
     var isModallyPresented: Bool
     
     let mode: SecureBackupRecoveryKeyScreenViewMode
+    let presentationContext: SecureBackupRecoveryKeyScreenPresentationContext
+    /// Whether the new recovery key is saved and the screen is showing that it is now active.
+    var isCompleted = false
+    var keyValidity = SecureBackupRecoveryKeyValidity.unchecked
     
     var recoveryKey: String?
-    var isGeneratingKey = false
     var doneButtonEnabled = false
     
     var bindings: SecureBackupRecoveryKeyScreenViewBindings
     
+    /// Setting up or changing the key goes straight to generating it, so the introduction is never seen.
+    private var hasKey: Bool {
+        recoveryKey != nil
+    }
+    
+    /// The title of the button that closes the screen once the new recovery key is active.
+    var completionButtonTitle: String {
+        switch presentationContext {
+        case .standard:
+            L10n.actionDone
+        case .deviceRemoval:
+            L10n.screenSignoutSaveRecoveryKeyActionContinue
+        }
+    }
+    
+    var icon: KeyPath<CompoundIcons, Image> {
+        isCompleted ? \.checkCircleSolid : \.keySolid
+    }
+    
+    var iconStyle: BigIcon.Style {
+        isCompleted ? .successSolid : .defaultSolid
+    }
+    
     var title: String {
+        guard !isCompleted else { return completedTitle }
+        
         switch mode {
         case .setupRecovery:
-            return recoveryKey == nil ? L10n.screenRecoveryKeySetupTitle : L10n.screenRecoveryKeySaveTitle
+            return hasKey ? L10n.screenRecoveryKeySaveTitle : L10n.screenRecoveryKeySetupTitle
         case .changeRecovery:
-            return recoveryKey == nil ? L10n.screenRecoveryKeyChangeTitle : L10n.screenRecoveryKeySaveTitle
+            return hasKey ? L10n.screenRecoveryKeySaveTitle : L10n.screenRecoveryKeyChangeTitle
         case .fixRecovery:
             return L10n.screenRecoveryKeyConfirmTitle
+        case .checkRecovery:
+            return L10n.screenRecoveryKeyCheckTitle
         default:
             return L10n.errorUnknown
         }
     }
     
+    private var completedTitle: String {
+        switch mode {
+        case .checkRecovery:
+            L10n.screenRecoveryKeyCheckSuccessTitle
+        case .setupRecovery:
+            L10n.screenCustomRecoveryKeySuccessTitle
+        default:
+            L10n.screenRecoveryKeySuccessTitle
+        }
+    }
+    
     var subtitle: String? {
+        guard !isCompleted else { return L10n.screenCustomRecoveryKeySuccessSubtitle }
+        
         switch mode {
         case .setupRecovery:
-            return recoveryKey == nil ? L10n.screenRecoveryKeySetupDescription : L10n.screenRecoveryKeySaveDescription
+            return hasKey ? L10n.screenRecoveryKeySaveDescription : L10n.screenRecoveryKeySetupDescription
         case .changeRecovery:
-            return recoveryKey == nil ? L10n.screenRecoveryKeyChangeDescription : L10n.screenRecoveryKeySaveDescription
+            return hasKey ? L10n.screenRecoveryKeySaveDescription : L10n.screenRecoveryKeyChangeDescription
         case .fixRecovery:
             return L10n.screenRecoveryKeyConfirmDescription
+        case .checkRecovery:
+            return L10n.screenRecoveryKeyCheckSubtitle
         default:
             return nil
         }
     }
     
+    /// Where to change the recovery key later, shown when the backup has only just been set up.
+    var completionNotice: String? {
+        isCompleted && mode == .setupRecovery ? L10n.screenCustomRecoveryKeySuccessNotice : nil
+    }
+    
     var recoveryKeySubtitle: String? {
         switch mode {
         case .setupRecovery:
-            return recoveryKey == nil ? L10n.screenRecoveryKeySetupGenerateKeyDescription : L10n.screenRecoveryKeySaveKeyDescription
+            return hasKey ? L10n.screenRecoveryKeySaveKeyDescription : L10n.screenRecoveryKeySetupGenerateKeyDescription
         case .changeRecovery:
-            return recoveryKey == nil ? L10n.screenRecoveryKeyChangeGenerateKeyDescription : L10n.screenRecoveryKeySaveKeyDescription
+            return hasKey ? L10n.screenRecoveryKeySaveKeyDescription : L10n.screenRecoveryKeyChangeGenerateKeyDescription
         case .fixRecovery:
             return L10n.screenRecoveryKeyConfirmKeyDescription
         default:
@@ -78,10 +144,16 @@ struct SecureBackupRecoveryKeyScreenViewBindings {
 }
 
 enum SecureBackupRecoveryKeyScreenViewAction {
-    case generateKey
     case copyKey
     case keySaved
     case confirmKey
-    case done
+    /// The user has saved the key and wants to continue, which asks them to confirm that.
+    case confirmKeySaved
+    /// The user has seen that the new key is active.
+    case complete
+    /// The text in the field of the key that is being checked has changed.
+    case checkedKeyChanged
+    /// The user wants the key they have entered to be checked.
+    case submitCheckedKey
     case cancel
 }

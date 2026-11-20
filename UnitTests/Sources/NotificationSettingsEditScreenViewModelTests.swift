@@ -7,7 +7,6 @@
 //
 
 import MatrixRustSDK
-@testable import Seventwos
 import Testing
 
 @MainActor

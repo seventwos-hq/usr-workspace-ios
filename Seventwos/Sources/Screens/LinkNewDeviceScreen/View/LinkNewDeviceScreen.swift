@@ -126,6 +126,12 @@ struct LinkNewDeviceScreen_Previews: PreviewProvider, TestablePreview {
         .snapshotPreferences(expect: verifyingViewModel.context.observe(\.viewState.mode).map { $0 == .readyToLink(.verifyingDeviceOwner) })
         
         SeventwosNavigationStack {
+            LinkNewDeviceScreen(context: verifyingViewModel.context)
+        }
+        .previewDisplayName("Verifying")
+        .snapshotPreferences(expect: verifyingViewModel.context.observe(\.viewState.mode).map { $0 == .readyToLink(.verifyingDeviceOwner) })
+        
+        SeventwosNavigationStack {
             LinkNewDeviceScreen(context: generatingViewModel.context)
         }
         .previewDisplayName("Generating")

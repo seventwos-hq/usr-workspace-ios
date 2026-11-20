@@ -11,10 +11,9 @@ import Combine
 import SwiftUI
 
 struct CallScreenCoordinatorParameters {
-    let elementCallService: ElementCallServiceProtocol
+    let userSession: UserSessionProtocol
     let configuration: ElementCallConfiguration
     let allowPictureInPicture: Bool
-    let appSettings: AppSettings
     let analytics: AnalyticsServiceProtocol
 }
 
@@ -42,10 +41,9 @@ final class CallScreenCoordinator: CoordinatorProtocol {
     }
     
     init(parameters: CallScreenCoordinatorParameters) {
-        viewModel = CallScreenViewModel(elementCallService: parameters.elementCallService,
+        viewModel = CallScreenViewModel(userSession: parameters.userSession,
                                         configuration: parameters.configuration,
                                         allowPictureInPicture: parameters.allowPictureInPicture,
-                                        appSettings: parameters.appSettings,
                                         analyticsService: parameters.analytics)
     }
     

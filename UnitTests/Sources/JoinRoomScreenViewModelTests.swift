@@ -15,6 +15,7 @@ final class JoinRoomScreenViewModelTests {
     private enum TestMode {
         case joined
         case knocked
+        case knockRestricted(canJoinRoom: Bool)
         case invited
         case banned
         case alreadyJoined
@@ -31,10 +32,10 @@ final class JoinRoomScreenViewModelTests {
         viewModel.context
     }
     
-    private let appSettings: AppSettings
+    private let userSettings: UserSettings
     
     init() {
-        appSettings = AppSettings.volatile()
+        userSettings = UserSettings.mock()
     }
     
     isolated deinit {
@@ -45,12 +46,12 @@ final class JoinRoomScreenViewModelTests {
     
     @Test
     func interaction() async throws {
-        #expect(appSettings.seenInvites.isEmpty, "There shouldn't be any seen invites before running the tests.")
+        #expect(userSettings.account.seenInvites.isEmpty, "There shouldn't be any seen invites before running the tests.")
         
         setupViewModel()
         try await deferFulfillment(viewModel.context.$viewState) { $0.mode == .joinable }.fulfill()
         
-        #expect(appSettings.seenInvites.isEmpty, "Only an invited room should register the room ID as a seen invite.")
+        #expect(userSettings.account.seenInvites.isEmpty, "Only an invited room should register the room ID as a seen invite.")
         
         let deferred = deferFulfillment(viewModel.actionsPublisher) { $0 == .joined(.roomID("1")) }
         context.send(viewAction: .join)
@@ -59,28 +60,28 @@ final class JoinRoomScreenViewModelTests {
     
     @Test
     func acceptInviteInteraction() async throws {
-        #expect(appSettings.seenInvites.isEmpty, "There shouldn't be any seen invites before running the tests.")
+        #expect(userSettings.account.seenInvites.isEmpty, "There shouldn't be any seen invites before running the tests.")
         
         setupViewModel(mode: .invited)
         try await deferFulfillment(viewModel.context.$viewState) { $0.mode == .invited(isDM: false) }.fulfill()
         
-        #expect(appSettings.seenInvites == ["1"], "The invited room's ID should be registered as a seen invite.")
+        #expect(userSettings.account.seenInvites == ["1"], "The invited room's ID should be registered as a seen invite.")
         
         let deferred = deferFulfillment(viewModel.actionsPublisher) { $0 == .joined(.roomID("1")) }
         context.send(viewAction: .acceptInvite)
         try await deferred.fulfill()
         
-        #expect(appSettings.seenInvites.isEmpty, "The after accepting an invite the invite should be forgotten in case the user leaves.")
+        #expect(userSettings.account.seenInvites.isEmpty, "The after accepting an invite the invite should be forgotten in case the user leaves.")
     }
     
     @Test
     func declineInviteInteraction() async throws {
-        #expect(appSettings.seenInvites.isEmpty, "There shouldn't be any seen invites before running the tests.")
+        #expect(userSettings.account.seenInvites.isEmpty, "There shouldn't be any seen invites before running the tests.")
         
         setupViewModel(mode: .invited)
         
         try await deferFulfillment(viewModel.context.$viewState) { $0.mode == .invited(isDM: false) }.fulfill()
-        #expect(appSettings.seenInvites == ["1"], "The invited room's ID should be registered as a seen invite.")
+        #expect(userSettings.account.seenInvites == ["1"], "The invited room's ID should be registered as a seen invite.")
         
         context.send(viewAction: .declineInvite)
         
@@ -89,17 +90,24 @@ final class JoinRoomScreenViewModelTests {
         context.alertInfo?.secondaryButton?.action?()
         try await deferred.fulfill()
         
-        #expect(appSettings.seenInvites.isEmpty, "The after declining an invite the invite should be forgotten in case another invite is received.")
+        #expect(userSettings.account.seenInvites.isEmpty, "The after declining an invite the invite should be forgotten in case another invite is received.")
     }
     
     @Test
     func knockedState() async throws {
-        #expect(appSettings.seenInvites.isEmpty, "There shouldn't be any seen invites before running the tests.")
+        #expect(userSettings.account.seenInvites.isEmpty, "There shouldn't be any seen invites before running the tests.")
         setupViewModel(mode: .knocked)
         
         try await deferFulfillment(viewModel.context.$viewState) { $0.mode == .knocked }.fulfill()
         
-        #expect(appSettings.seenInvites.isEmpty, "Only an invited room should register the room ID as a seen invite.")
+        #expect(userSettings.account.seenInvites.isEmpty, "Only an invited room should register the room ID as a seen invite.")
+    }
+    
+    @Test(arguments: [(true, JoinRoomScreenMode.joinable), (false, .knockable)])
+    func knockRestrictedMode(canJoinRoom: Bool, expectedMode: JoinRoomScreenMode) async throws {
+        setupViewModel(mode: .knockRestricted(canJoinRoom: canJoinRoom))
+        
+        try await deferFulfillment(viewModel.context.$viewState) { $0.mode == expectedMode }.fulfill()
     }
     
     @Test
@@ -213,6 +221,9 @@ final class JoinRoomScreenViewModelTests {
                 roomProxy.cancelKnockReturnValue = .success(())
                 return .knocked(roomProxy)
             }
+        case .knockRestricted(let canJoinRoom):
+            clientProxy.roomPreviewForIdentifierViaReturnValue = .success(RoomPreviewProxyMock.knockableRestricted)
+            clientProxy.canJoinRoomWithReturnValue = canJoinRoom
         case .joined:
             clientProxy.roomPreviewForIdentifierViaReturnValue = .success(RoomPreviewProxyMock.joinable)
         case .invited:
@@ -237,8 +248,7 @@ final class JoinRoomScreenViewModelTests {
         }
         
         viewModel = JoinRoomScreenViewModel(source: .generic(roomID: "1", via: []),
-                                            appSettings: appSettings,
-                                            userSession: UserSessionMock(.init(clientProxy: clientProxy)),
+                                            userSession: UserSessionMock(.init(clientProxy: clientProxy, userSettings: userSettings)),
                                             userIndicatorController: UserIndicatorControllerMock())
     }
 }

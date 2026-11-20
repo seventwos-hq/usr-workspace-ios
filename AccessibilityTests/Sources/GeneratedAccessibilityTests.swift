@@ -1,4 +1,4 @@
-// Generated using Sourcery 2.3.0 — https://github.com/krzysztofzablocki/Sourcery
+// Generated using Sourcery 2.4.1 — https://github.com/krzysztofzablocki/Sourcery
 // DO NOT EDIT
 
 // swiftlint:disable all
@@ -9,10 +9,6 @@ extension AccessibilityTests {
 
     func testActiveCallTimelineItemView() async throws {
         try await performAccessibilityAudit(named: "ActiveCallTimelineItemView_Previews")
-    }
-
-    func testAdvancedSettingsScreen() async throws {
-        try await performAccessibilityAudit(named: "AdvancedSettingsScreen_Previews")
     }
 
     func testAnalyticsPromptScreen() async throws {
@@ -59,8 +55,8 @@ extension AccessibilityTests {
         try await performAccessibilityAudit(named: "AvatarHeaderView_Previews")
     }
 
-    func testAvatarSettingsButtonLabel() async throws {
-        try await performAccessibilityAudit(named: "AvatarSettingsButtonLabel_Previews")
+    func testAvatarSettingsButton() async throws {
+        try await performAccessibilityAudit(named: "AvatarSettingsButton_Previews")
     }
 
     func testBadgeLabel() async throws {
@@ -339,6 +335,10 @@ extension AccessibilityTests {
         try await performAccessibilityAudit(named: "LocationSharingScreen_Previews")
     }
 
+    func testLocationSharingSettingsScreen() async throws {
+        try await performAccessibilityAudit(named: "LocationSharingSettingsScreen_Previews")
+    }
+
     func testLoginScreen() async throws {
         try await performAccessibilityAudit(named: "LoginScreen_Previews")
     }
@@ -371,6 +371,10 @@ extension AccessibilityTests {
         try await performAccessibilityAudit(named: "MediaUploadPreviewScreen_Previews")
     }
 
+    func testMediaUploadQualitySettingsScreen() async throws {
+        try await performAccessibilityAudit(named: "MediaUploadQualitySettingsScreen_Previews")
+    }
+
     func testMentionSuggestionItemView() async throws {
         try await performAccessibilityAudit(named: "MentionSuggestionItemView_Previews")
     }
@@ -391,8 +395,20 @@ extension AccessibilityTests {
         try await performAccessibilityAudit(named: "MessageText_Previews")
     }
 
+    func testModerationAndSafetySettingsScreen() async throws {
+        try await performAccessibilityAudit(named: "ModerationAndSafetySettingsScreen_Previews")
+    }
+
+    func testMultiAccountAnnouncementView() async throws {
+        try await performAccessibilityAudit(named: "MultiAccountAnnouncementView_Previews")
+    }
+
     func testNoticeRoomTimelineView() async throws {
         try await performAccessibilityAudit(named: "NoticeRoomTimelineView_Previews")
+    }
+
+    func testNotificationCountBadge() async throws {
+        try await performAccessibilityAudit(named: "NotificationCountBadge_Previews")
     }
 
     func testNotificationPermissionsScreen() async throws {
@@ -627,6 +643,14 @@ extension AccessibilityTests {
         try await performAccessibilityAudit(named: "ScanStateMediaEventsTimelineViews_Previews")
     }
 
+    func testSearchScreenHistoryLimitSheet() async throws {
+        try await performAccessibilityAudit(named: "SearchScreenHistoryLimitSheet_Previews")
+    }
+
+    func testSearchScreenMessagesNoResultsView() async throws {
+        try await performAccessibilityAudit(named: "SearchScreenMessagesNoResultsView_Previews")
+    }
+
     func testSearchScreen() async throws {
         try await performAccessibilityAudit(named: "SearchScreen_Previews")
     }
@@ -689,10 +713,6 @@ extension AccessibilityTests {
 
     func testShimmerOverlay() async throws {
         try await performAccessibilityAudit(named: "ShimmerOverlay_Previews")
-    }
-
-    func testSoftLogoutScreen() async throws {
-        try await performAccessibilityAudit(named: "SoftLogoutScreen_Previews")
     }
 
     func testSpaceAddRoomsScreenSelectedItem() async throws {
@@ -801,6 +821,10 @@ extension AccessibilityTests {
 
     func testTimelineMediaPreviewRedactConfirmationView() async throws {
         try await performAccessibilityAudit(named: "TimelineMediaPreviewRedactConfirmationView_Previews")
+    }
+
+    func testTimelineMessageSelectionActionBar() async throws {
+        try await performAccessibilityAudit(named: "TimelineMessageSelectionActionBar_Previews")
     }
 
     func testTimelineReactionView() async throws {

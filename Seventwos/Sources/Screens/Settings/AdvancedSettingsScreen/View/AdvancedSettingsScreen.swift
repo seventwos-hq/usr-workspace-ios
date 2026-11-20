@@ -1,6 +1,5 @@
 //
-// Copyright 2025 Element Creations Ltd.
-// Copyright 2022-2025 New Vector Ltd.
+// Copyright 2026 Element Creations Ltd.
 //
 // SPDX-License-Identifier: AGPL-3.0-only
 // Please see LICENSE files in the repository root for full details.
@@ -9,50 +8,34 @@
 import Compound
 import SwiftUI
 
-struct AdvancedSettingsScreen: View {
-    static let measurementFormatter = {
-        let formatter = MeasurementFormatter()
-        formatter.unitOptions = .providedUnit
-        formatter.unitStyle = .short
-        return formatter
-    }()
-    
-    @Bindable var context: AdvancedSettingsScreenViewModel.Context
+struct ModerationAndSafetySettingsScreen: View {
+    @Bindable var context: ModerationAndSafetySettingsScreenViewModel.Context
     
     var body: some View {
         Form {
-            Section {
-                ListRow(label: .plain(title: L10n.commonAppearance),
-                        kind: .picker(selection: $context.appAppearance,
-                                      items: AppAppearance.allCases.map { (title: $0.name, tag: $0) }))
-                
-                ListRow(label: .plain(title: L10n.actionViewSource,
-                                      description: L10n.screenAdvancedSettingsViewSourceDescription),
-                        kind: .toggle($context.viewSourceEnabled))
-                
-                ListRow(label: .plain(title: L10n.screenAdvancedSettingsSharePresence,
-                                      description: L10n.screenAdvancedSettingsSharePresenceDescription),
-                        kind: .toggle($context.sharePresence))
-                
-                ListRow(label: .plain(title: L10n.screenAdvancedSettingsMediaCompressionTitle,
-                                      description: L10n.screenAdvancedSettingsMediaCompressionDescription),
-                        kind: .toggle($context.optimizeMediaUploads))
-                    .onChange(of: context.optimizeMediaUploads) {
-                        context.send(viewAction: .optimizeMediaUploadsChanged)
-                    }
-            }
-            
-            moderationAndSafetySection
+            sharePresenceSection
+            invitesSection
             timelineMediaSection
-            liveLocationSection
+            blockedUsersSection
         }
         .compoundList()
-        .navigationTitle(L10n.commonAdvancedSettings)
+        .navigationTitle(L10n.commonModerationAndSafety)
         .navigationBarTitleDisplayMode(.inline)
     }
     
+    private var sharePresenceSection: some View {
+        Section {
+            ListRow(label: .plain(title: L10n.screenAdvancedSettingsSharePresence,
+                                  description: L10n.screenAdvancedSettingsSharePresenceDescription),
+                    kind: .toggle($context.sharePresence))
+        } header: {
+            Text(L10n.screenModerationAndSafetySharePresenceHeading)
+                .compoundListSectionHeader()
+        }
+    }
+    
     @ViewBuilder
-    private var moderationAndSafetySection: some View {
+    private var invitesSection: some View {
         let binding = Binding(get: {
             context.viewState.hideInviteAvatars
         }, set: { newValue in
@@ -65,7 +48,7 @@ struct AdvancedSettingsScreen: View {
                     kind: .toggle(binding))
                 .disabled(context.viewState.isWaitingHideInviteAvatars)
         } header: {
-            Text(L10n.screenAdvancedSettingsModerationAndSafetySectionTitle)
+            Text(L10n.screenModerationAndSafetyInvitesHeading)
                 .compoundListSectionHeader()
         }
     }
@@ -94,84 +77,30 @@ struct AdvancedSettingsScreen: View {
     }
     
     @ViewBuilder
-    private var liveLocationSection: some View {
-        let binding = Binding(get: {
-            Double(context.liveLocationMinimumDistanceUpdate)
-        }, set: { newValue in
-            context.liveLocationMinimumDistanceUpdate = Int(newValue)
-        })
-        
-        Section {
-            ListRow(kind: .custom {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(L10n.screenAdvancedSettingsLiveLocationUpdateDistance(context.liveLocationMinimumDistanceUpdate))
-                        .font(.compound.bodyLG)
-                        .foregroundStyle(.compound.textPrimary)
-                        // The internal hidden label of the slider will read voice over
-                        .accessibilityHidden(true)
-                    Slider(value: binding, in: 1...100) {
-                        Text(L10n.screenAdvancedSettingsLiveLocationUpdateDistance(context.liveLocationMinimumDistanceUpdate))
-                    } minimumValueLabel: {
-                        Text(Self.measurementFormatter.string(from: .init(value: 1,
-                                                                          unit: UnitLength.meters)))
-                            .font(.compound.bodyLG)
-                            .foregroundStyle(.compound.textSecondary)
-                            .padding(.trailing, 15)
-                    } maximumValueLabel: {
-                        Text(Self.measurementFormatter.string(from: .init(value: 100,
-                                                                          unit: UnitLength.meters)))
-                            .font(.compound.bodyLG)
-                            .foregroundStyle(.compound.textSecondary)
-                            .padding(.leading, 15)
-                    }
-                    .tint(.compound.iconAccentPrimary)
-                }
-                .padding(.horizontal, ListRowPadding.horizontal)
-                .padding(.vertical, ListRowPadding.vertical)
-            })
-        } header: {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L10n.screenAdvancedSettingsLiveLocationSectionTitle)
-                    .compoundListSectionHeader()
-                Text(L10n.screenAdvancedSettingsLiveLocationSectionDescription)
-                    .font(.compound.bodyMD)
-                    .foregroundStyle(.compound.textSecondary)
+    private var blockedUsersSection: some View {
+        if context.viewState.showBlockedUsers {
+            Section {
+                ListRow(label: .default(title: L10n.commonBlockedUsers,
+                                        icon: \.block),
+                        kind: .navigationLink {
+                            context.send(viewAction: .blockedUsers)
+                        })
             }
-        } footer: {
-            Text(context.viewState.liveLocationUpdateFooterAttributedString)
-                .compoundListSectionFooter()
-        }
-    }
-}
-
-private extension AppAppearance {
-    var name: String {
-        switch self {
-        case .system:
-            L10n.themeSystem
-        case .light:
-            L10n.themeLight
-        case .dark:
-            L10n.themeDark
         }
     }
 }
 
 // MARK: - Previews
 
-struct AdvancedSettingsScreen_Previews: PreviewProvider, TestablePreview {
-    static let viewModel = {
-        let appSettings = AppSettings.volatile()
-        return AdvancedSettingsScreenViewModel(advancedSettings: appSettings,
-                                               analytics: AnalyticsServiceMock(.init()),
-                                               clientProxy: ClientProxyMock(.init()),
-                                               userIndicatorController: UserIndicatorControllerMock())
-    }()
+struct ModerationAndSafetySettingsScreen_Previews: PreviewProvider, TestablePreview {
+    static let viewModel = ModerationAndSafetySettingsScreenViewModel(userSession: UserSessionMock(.init()),
+                                                                      userIndicatorController: UserIndicatorControllerMock())
     
     static var previews: some View {
         SeventwosNavigationStack {
-            AdvancedSettingsScreen(context: viewModel.context)
+            ModerationAndSafetySettingsScreen(context: viewModel.context)
         }
+        .snapshotPreferences(expect: viewModel.context.observe(\.viewState.showBlockedUsers))
     }
 }
 

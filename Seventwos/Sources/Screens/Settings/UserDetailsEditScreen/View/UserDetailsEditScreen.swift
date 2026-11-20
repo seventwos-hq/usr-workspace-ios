@@ -145,8 +145,8 @@ struct UserDetailsEditScreen_Previews: PreviewProvider, TestablePreview {
                                                                                    canChangeDisplayName: canChangeProfile))))
         
         return UserDetailsEditScreenViewModel(userSession: userSession,
-                                              mediaUploadingPreprocessor: .init(appSettings: .volatile()),
-                                  appMediator: AppMediatorMock(.init()),
+                                              mediaUploadingPreprocessor: .init(userSettings: .mock()),
+                                              appMediator: AppMediatorMock(.init()),
                                               userIndicatorController: UserIndicatorControllerMock())
     }
 }

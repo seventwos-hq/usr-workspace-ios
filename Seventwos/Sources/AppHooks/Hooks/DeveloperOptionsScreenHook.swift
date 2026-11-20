@@ -8,7 +8,7 @@
 import SwiftUI
 
 nonisolated protocol DeveloperOptionsScreenHookProtocol: Sendable {
-    func generalSectionRows(isSignedIn: Bool) -> AnyView?
+    func generalSectionRows() -> AnyView?
 }
 
 struct DefaultDeveloperOptionsScreenHook: DeveloperOptionsScreenHookProtocol {

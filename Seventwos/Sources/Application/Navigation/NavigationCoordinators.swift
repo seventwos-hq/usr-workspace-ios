@@ -395,6 +395,7 @@ private struct NavigationSplitCoordinatorView: View {
             .environment(\.isInSidebar, true)
             // The tab rail's background tracks the detail module, so exclude the sidebar's background value.
             .transformPreference(CompoundBackgroundPreferenceKey.self) { $0 = nil }
+            .overlay(alignment: .trailing) { NavigationSidebarDivider() }
         } detail: {
             if let detailModule = navigationSplitCoordinator.detailModule {
                 detailModule.coordinator?.toPresentable()
@@ -411,6 +412,18 @@ private struct NavigationSplitCoordinatorView: View {
         }
         .animation(.seventwosDefault, value: navigationSplitCoordinator.sidebarModule)
         .animation(.noAnimation, value: navigationSplitCoordinator.detailModule) // Don't crossfade the detail transition on iPad.
+    }
+}
+
+/// The vertical divider that separates the sidebar from its neighbours on iOS 27, where the sidebar is no longer inset.
+struct NavigationSidebarDivider: View {
+    var body: some View {
+        if #available(iOS 27, *) {
+            HStack(spacing: 0) { // The stack is necessary for the divider's orientation.
+                Divider()
+            }
+            .ignoresSafeArea()
+        }
     }
 }
 

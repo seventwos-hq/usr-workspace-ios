@@ -22,7 +22,7 @@ enum TimelineViewModelAction {
     case displayEditPollForm(eventID: String, poll: Poll)
     case displayMediaUploadPreviewScreen(mediaURLs: [URL])
     case displaySenderDetails(userID: String)
-    case displayMessageForwarding(forwardingItem: MessageForwardingItem)
+    case displayMessageForwarding(forwardingPayload: MessageForwardingPayload)
     case displayMediaPreview(TimelineMediaPreviewViewModel)
     case displayLocation(StaticLocationData)
     case displayLiveLocation(sender: TimelineItemSender, initialLiveLocationShare: LiveLocationShare)
@@ -56,6 +56,7 @@ enum TimelineViewAction {
     case galleryItemTapped(GalleryItemID)
     case itemSendInfoTapped(itemID: TimelineItemIdentifier)
     case toggleReaction(key: String, itemID: TimelineItemIdentifier)
+    case playReactionEffect(origin: CGPoint?)
     case sendReadReceiptIfNeeded(TimelineItemIdentifier)
     case paginateBackwards
     case paginateForwards
@@ -69,11 +70,11 @@ enum TimelineViewAction {
     /// The user has confirmed the removal of an item, optionally giving a reason.
     case redactConfirmed(itemID: TimelineItemIdentifier, reason: String?)
     
-    /// Start a multi-selection with the specified item.
-    case startSelection(itemID: TimelineItemIdentifier)
     /// Add or remove an item from the active multi-selection.
-    case toggleSelection(itemID: TimelineItemIdentifier)
-    case clearSelection
+    case toggleMessageSelection(itemID: TimelineItemIdentifier)
+    case clearMessageSelection
+    /// Forward the selected messages, in timeline order.
+    case forwardMessageSelection
     
     case tappedOnSenderDetails(sender: TimelineItemSender)
     case displayReactionSummary(itemID: TimelineItemIdentifier, key: String)
@@ -137,7 +138,7 @@ struct TimelineViewState: BindableState {
     var linkPreviewsEnabled: Bool
     var jumpToReadMarkerEnabled: Bool
     
-    var selection: TimelineSelectionState
+    var messageSelection = TimelineMessageSelectionState()
     
     let hasPredecessor: Bool
     
@@ -165,7 +166,16 @@ struct TimelineViewState: BindableState {
     
     var stoppedLiveLocationIDs: Set<TimelineItemIdentifier> = []
     
+    var pendingReactionEffect: PendingReactionEffect?
+    var particleEffect: ParticleEffect?
+    
     var bindings: TimelineViewStateBindings
+    
+    struct PendingReactionEffect: Equatable {
+        let itemID: TimelineItemIdentifier
+        let key: String
+        let type: ParticleEmitterType
+    }
 }
 
 struct TimelineViewStateBindings {
@@ -205,18 +215,13 @@ struct TimelineViewStateBindings {
     var textToBeTranslated: String?
 }
 
-/// The state of the multi-selection of messages, active as soon as an item is selected.
-struct TimelineSelectionState: Equatable {
-    static let limit = 30
+/// The state of the multi-selection of messages.
+struct TimelineMessageSelectionState: Equatable {
+    static let limit = 10
     
-    /// Mirrors the `messageMultiSelectEnabled` feature flag.
-    var isEnabled = false
-    /// The event IDs of the selected items. Only remote messages can be selected.
+    /// Stays on when every message is unselected, it only ends when closed or once the messages are forwarded.
+    var isActive = false
     var selectedEventIDs: Set<String> = []
-    
-    var isActive: Bool {
-        !selectedEventIDs.isEmpty
-    }
     
     var count: Int {
         selectedEventIDs.count
@@ -229,6 +234,11 @@ struct TimelineSelectionState: Equatable {
     func contains(_ eventID: String?) -> Bool {
         guard let eventID else { return false }
         return selectedEventIDs.contains(eventID)
+    }
+    
+    mutating func end() {
+        isActive = false
+        selectedEventIDs.removeAll()
     }
 }
 
@@ -266,7 +276,7 @@ struct TimelineRedactConfirmationInfo: Identifiable {
 enum TimelineAlertInfoType: Hashable {
     case audioRecodingPermissionError
     case pollEndConfirmation(String)
-    case sendingFailed(reason: String?, sendHandle: SendHandleProxy?)
+    case sendingFailed(reason: String?, itemID: TimelineItemIdentifier, target: SendTarget?)
     case encryptionAuthenticity(String)
     case encryptionForwarder(String)
     case inviteAgain
@@ -354,12 +364,11 @@ enum ScrollDirection: Equatable {
 }
 
 extension TimelineViewState {
-    /// Multi-selection is only offered in the room and thread timelines.
+    /// Multi-selection is offered everywhere but the media timelines.
     var canSelectMessages: Bool {
-        guard selection.isEnabled else { return false }
-        return switch timelineKind {
-        case .live, .detached, .thread: true
-        case .pinned, .media: false
+        switch timelineKind {
+        case .live, .detached, .thread, .pinned: true
+        case .media: false
         }
     }
     

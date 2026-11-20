@@ -61,3 +61,39 @@ Any user-visible change (screens, layout, styling, branding, text, flows) must i
 - Use realistic data, not empty states.
 - Attach screenshots to the Notion card and to the PR description.
 - Missing screenshots = not approved.
+
+## Technical conventions (iOS)
+
+### Code style
+- SwiftLint and SwiftFormat enforce style on build; follow the Swift API Design Guidelines (`ID` not `Id`, `URL` not `Url`, `configuration` not `config`).
+- Import `SwiftUI`, not `UIKit` or `Foundation`, in UI code.
+- Member order: properties, `init`, functions. Views: properties, `init`, `body` first, then helpers.
+- Comments explain why, not what. `///` docs open with a summary of what the symbol is or does.
+- Logging: default `MXLog.info`, unexpected failures `.error`. Never log secrets or user content. Action enums with secret associated values conform to `CustomStringConvertible` and log only the case name.
+- Strings: never edit `Localizable.strings` (generated). New English strings go in `Untranslated.strings`; access them via generated `L10n`.
+- Previews: use `PreviewProvider` with `TestablePreview` for all main states (snapshot and accessibility tests are generated from them).
+- Tests use Swift Testing where possible; see `.agents/skills/constrained-tests`.
+
+### Architecture: MVVM-C
+Each screen `Foo` has `FooScreenModels.swift` (ViewState, bindings, ViewAction, ViewModelAction), `FooScreenViewModelProtocol.swift`, `FooScreenViewModel.swift` (subclass of `StateStoreViewModelV2`), a SwiftUI view taking `@Bindable var context`, `FooScreenCoordinator.swift` and unit tests. Template: `Tools/Scripts/Templates/SimpleScreenExample/`.
+- `StateStoreViewModelV2` (`Seventwos/Sources/Other/SwiftUI/ViewModel/`) uses Observation: `context.viewState`, `context.send(viewAction:)`, `$context.<binding>`. Older screens may still use the Combine `StateStoreViewModel`.
+- View models notify coordinators through a `PassthroughSubject`; coordinators expose `actionsPublisher` to flow coordinators.
+- Flow coordinators own navigation and use `StateMachine<State, Event>`. `CommonFlowParameters` is for flow coordinators only; screens get specific dependencies via their `Parameters` struct.
+- Errors: SwiftUI alerts via `AlertInfo` in bindings; toasts via `UserIndicatorController` (modal indicators are not for errors).
+
+### Matrix Rust SDK layer
+- Wrap SDK objects in a protocol + proxy (`ClientProxyProtocol` / `ClientProxy`, Sourcery mock), named SDK type + `Proxy`, under `Services/<Feature>/`.
+- Map SDK records/enums to app-owned Swift types (`init(rustValue:)`, `rustValue`); views never import `MatrixRustSDK`.
+- Use typed `Result<T, E>`; `async` only when the Rust method is async; map FFI types to Swift ones (`String` to `URL`, timestamps to `Date`).
+- Dependencies come via `init`. Pass `userSession` when 2+ of its members are needed, otherwise the single member. Singletons are a last resort.
+
+### Concurrency
+- Swift 6 language mode. The app, UnitTests and PreviewTests default to `MainActor` isolation, so skip redundant `@MainActor`; extensions are nonisolated.
+- Services and data-layer types are `nonisolated` + `Sendable` when background work needs it. Never use `@unchecked Sendable` or `nonisolated(unsafe)`.
+- See `.agents/skills/swift-concurrency-pro`.
+
+### Compound design system
+- `compound-ios/` provides all UI styling: `Color.compound.*`, `Font.compound.*`, `CompoundIcon(\.icon)`, `ListRow`, `.compoundList()`, `CompoundButtonStyle`, `.toggleStyle(.compound)`. Deviate only when no equivalent exists.
+
+### Dead code
+- Use `.agents/skills/periphery-cleanup` for Periphery unused-code cleanup.

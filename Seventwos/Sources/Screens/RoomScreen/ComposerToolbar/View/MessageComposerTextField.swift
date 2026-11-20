@@ -103,11 +103,13 @@ private struct UITextViewWrapper: UIViewRepresentable {
     }
     
     func updateUIView(_ textView: UITextView, context: UIViewRepresentableContext<UITextViewWrapper>) {
-        // Prevent the textView from inheriting attributes from mention pills
+        // Prevent the textView from inheriting attributes from mention pills, keeping the current paragraph's direction.
         textView.typingAttributes = [.font: font,
-                                     .foregroundColor: UIColor.compound.textPrimary]
+                                     .foregroundColor: UIColor.compound.textPrimary,
+                                     .paragraphStyle: textView.typingAttributes[.paragraphStyle] ?? NSParagraphStyle.default]
         
-        if textView.attributedText != text {
+        let directedText = text.applyingParagraphWritingDirections()
+        if textView.attributedText != directedText {
             // Remember the selection if only the attributes have changed.
             let selection = textView.attributedText.string == text.string ? textView.selectedTextRange : nil
             
@@ -116,7 +118,7 @@ private struct UITextViewWrapper: UIViewRepresentable {
             // https://github.com/element-hq/element-x-ios/issues/3369
             _ = textView.layoutManager
             
-            textView.attributedText = text
+            textView.attributedText = directedText
             
             // Re-apply the default font when setting text for e.g. edits.
             textView.font = font
@@ -173,6 +175,7 @@ private struct UITextViewWrapper: UIViewRepresentable {
         }
         
         func textViewDidChange(_ textView: UITextView) {
+            textView.textStorage.applyParagraphWritingDirections()
             text.wrappedValue = textView.attributedText
         }
         
@@ -204,9 +207,8 @@ private protocol ElementTextViewDelegate: AnyObject {
     func textView(_ textView: UITextView, didReceivePasteWith providers: [NSItemProvider])
 }
 
-private class ElementTextView: UITextView, PillAttachmentViewProviderDelegate {
+private class ElementTextView: UITextView, TextAttachmentViewProviderDelegate {
     private(set) var timelineContext: TimelineViewModel.Context?
-    private var pillViews = NSHashTable<UIView>.weakObjects()
     
     weak var elementDelegate: ElementTextViewDelegate?
     
@@ -217,7 +219,7 @@ private class ElementTextView: UITextView, PillAttachmentViewProviderDelegate {
         super.init(frame: .zero, textContainer: nil)
         
         // Avoid `Publishing changes from within view update` warnings
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [self] in
             presendCallback.wrappedValue = { [weak self] in
                 self?.acceptCurrentSuggestion()
             }
@@ -296,7 +298,7 @@ private class ElementTextView: UITextView, PillAttachmentViewProviderDelegate {
         elementDelegate?.textView(self, didReceivePasteWith: providers)
     }
     
-    // MARK: PillAttachmentViewProviderDelegate
+    // MARK: TextAttachmentViewProviderDelegate
     
     func invalidateTextAttachmentsDisplay() {
         attributedText.enumerateAttribute(.attachment,
@@ -309,9 +311,8 @@ private class ElementTextView: UITextView, PillAttachmentViewProviderDelegate {
         }
     }
     
-    func registerPillView(_ pillView: UIView) {
-        pillViews.add(pillView)
-    }
+    /// UIKit removes old pill views from this text view when its text changes, so there's nothing to track.
+    func registerPillView(_ pillView: UIView) { }
     
     // MARK: - Private
     

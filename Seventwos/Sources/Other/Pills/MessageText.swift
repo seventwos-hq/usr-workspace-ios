@@ -9,10 +9,9 @@
 import MatrixRustSDK
 import SwiftUI
 
-final class MessageTextView: UITextView, PillAttachmentViewProviderDelegate, UIGestureRecognizerDelegate {
+final class MessageTextView: UITextView, TextAttachmentViewProviderDelegate, UIGestureRecognizerDelegate, NSLayoutManagerDelegate {
     var timelineContext: TimelineViewModel.Context?
     var updateClosure: (() -> Void)?
-    private var pillViews = NSHashTable<UIView>.weakObjects()
     
     override func addGestureRecognizer(_ gestureRecognizer: UIGestureRecognizer) {
         // We don't need to change the behaviour on MacOS
@@ -42,16 +41,34 @@ final class MessageTextView: UITextView, PillAttachmentViewProviderDelegate, UIG
         }
     }
     
-    func registerPillView(_ pillView: UIView) {
-        pillViews.add(pillView)
-    }
+    /// UIKit removes old pill views from this text view when its text changes, so there's nothing to track.
+    func registerPillView(_ pillView: UIView) { }
     
-    func flushPills() {
-        for view in pillViews.allObjects {
-            view.alpha = 0.0
-            view.removeFromSuperview()
+    /// Stops TextKit from hyphenating code when a word doesn't fit on a line, wrapping it by
+    /// character instead. Code is meant to be verbatim, so an inserted hyphen would corrupt it.
+    nonisolated func layoutManager(_ layoutManager: NSLayoutManager, shouldBreakLineByHyphenatingBeforeCharacterAt charIndex: Int) -> Bool {
+        guard let textStorage = layoutManager.textStorage, charIndex < textStorage.length else {
+            return true
         }
-        pillViews.removeAllObjects()
+        
+        let isCode = textStorage.attribute(.InlineCode, at: charIndex, effectiveRange: nil) != nil
+            || textStorage.attribute(.CodeBlock, at: charIndex, effectiveRange: nil) != nil
+        return !isCode
+    }
+}
+
+/// An `NSTextAttachment` that takes up its declared `bounds` but draws nothing — used
+/// as an invisible spacer so a message bubble's text reserves room for the overlaid
+/// timestamp. Without this subclass, an attachment with no image would render TextKit's
+/// default "missing image" glyph.
+private final nonisolated class TransparentTextAttachment: NSTextAttachment {
+    override func image(forBounds imageBounds: CGRect,
+                        textContainer: NSTextContainer?,
+                        characterIndex charIndex: Int) -> UIImage? {
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = false
+        let size = CGSize(width: max(imageBounds.width, 1), height: max(imageBounds.height, 1))
+        return UIGraphicsImageRenderer(size: size, format: format).image { _ in }
     }
 }
 
@@ -84,13 +101,17 @@ struct MessageText: UIViewRepresentable {
         let reservedSize: CGSize
     }
     
+    /// The inputs the text view's text was built from. Compared instead of the text itself, which UIKit
+    /// normalises and which gets a new trailing spacer attachment on every build, so it never matches.
+    fileprivate struct TextInputs: Equatable {
+        let attributedString: AttributedString
+        let trailingReservedSize: CGSize
+        let layoutDirection: LayoutDirection
+    }
+    
     @State private var computedSizes = [SizeCacheKey: CGSize]()
     
-    @State var attributedString: AttributedString {
-        didSet {
-            computedSizes.removeAll()
-        }
-    }
+    let attributedString: AttributedString
     
     /// Reserves an invisible inline area of this size at the very end of the rendered
     /// text. Used so that the message bubble's natural size accommodates the timestamp
@@ -99,12 +120,19 @@ struct MessageText: UIViewRepresentable {
     /// line (timestamp drops below the text).
     var trailingReservedSize: CGSize = .zero
     
+    private var textInputs: TextInputs {
+        TextInputs(attributedString: attributedString,
+                   trailingReservedSize: trailingReservedSize,
+                   layoutDirection: layoutDirection)
+    }
+    
     private func makeAttributedText() -> NSAttributedString? {
-        guard let baseText = try? NSAttributedString(attributedString, including: \.seventwos) else {
+        guard let baseText = try? NSAttributedString(attributedString, including: \.elementX) else {
             return nil
         }
         
         let combined = NSMutableAttributedString(attributedString: baseText)
+        combined.applyParagraphWritingDirections()
         if trailingReservedSize.width > 0 {
             let attachment = TransparentTextAttachment()
             attachment.isAccessibilityElement = false
@@ -120,7 +148,7 @@ struct MessageText: UIViewRepresentable {
                 ? baseText.attribute(.font, at: baseText.length - 1, effectiveRange: nil)
                 : nil
             
-            // When the last paragraph's natural text direction doesn't match the layout
+            // When the last paragraph's text direction doesn't match the layout
             // direction, the inline attachment would land on the wrong side and overlap the
             // overlaid timestamp. Force it onto its own line so the bubble just grows taller.
             if !lastParagraphDirectionMatchesLayout(in: combined) {
@@ -140,21 +168,21 @@ struct MessageText: UIViewRepresentable {
                                               range: NSRange(location: 0, length: attachmentString.length))
             }
             combined.append(attachmentString)
+            // A reserved area on its own line must follow the text's direction, otherwise
+            // lines on opposite sides stretch the bubble to the full width.
+            combined.applyParagraphWritingDirections()
         }
         
         return combined
     }
     
     private func lastParagraphDirectionMatchesLayout(in attributedText: NSAttributedString) -> Bool {
-        let string = attributedText.string as NSString
-        guard string.length > 0 else { return true }
+        guard attributedText.length > 0 else { return true }
         
-        // Isolate the last paragraph because its direction is what decides
-        // which side the trailing attachment ends up on.
-        let lastParagraphRange = string.paragraphRange(for: NSRange(location: string.length - 1, length: 0))
-        let lastParagraph = string.substring(with: lastParagraphRange)
+        // The last paragraph's direction is what decides which side the trailing attachment ends up on.
+        let paragraphStyle = attributedText.attribute(.paragraphStyle, at: attributedText.length - 1, effectiveRange: nil) as? NSParagraphStyle
         
-        let textIsRTL = lastParagraph.firstStrongCharacterIsRTL
+        let textIsRTL = paragraphStyle?.baseWritingDirection == .rightToLeft
         let layoutIsRTL = layoutDirection == .rightToLeft
         return textIsRTL == layoutIsRTL
     }
@@ -163,13 +191,9 @@ struct MessageText: UIViewRepresentable {
         // Need to use TextKit 1 for mentions
         let textView = MessageTextView(usingTextLayoutManager: false)
         textView.timelineContext = viewModel
-        textView.updateClosure = { [weak textView] in
-            guard let textView else { return }
-            do {
-                attributedString = try AttributedString(textView.attributedText, including: \.seventwos)
-            } catch {
-                MXLog.error("Failed to update attributedString: \(error)]")
-                return
+        textView.updateClosure = {
+            DispatchQueue.main.async {
+                computedSizes.removeAll()
             }
         }
         textView.isEditable = false
@@ -194,19 +218,21 @@ struct MessageText: UIViewRepresentable {
         textView.textContainerInset = .zero
         textView.textContainer.lineFragmentPadding = 0
         textView.layoutManager.usesFontLeading = false
+        textView.layoutManager.delegate = textView
         textView.backgroundColor = .clear
         if let attributedText = makeAttributedText() {
             textView.attributedText = attributedText
+            context.coordinator.textInputs = textInputs
         }
         textView.delegate = context.coordinator
         return textView
     }
     
     func updateUIView(_ uiView: MessageTextView, context: Context) {
-        if let newAttributedText = makeAttributedText(),
-           uiView.attributedText != newAttributedText {
-            uiView.flushPills()
+        if context.coordinator.textInputs != textInputs,
+           let newAttributedText = makeAttributedText() {
             uiView.attributedText = newAttributedText
+            context.coordinator.textInputs = textInputs
             computedSizes.removeAll()
         }
         context.coordinator.openURLAction = openURLAction
@@ -233,6 +259,7 @@ struct MessageText: UIViewRepresentable {
     
     final class Coordinator: NSObject, UITextViewDelegate {
         var openURLAction: OpenURLAction
+        fileprivate var textInputs: TextInputs?
         
         init(openURLAction: OpenURLAction) {
             self.openURLAction = openURLAction

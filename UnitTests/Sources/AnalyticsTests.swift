@@ -13,15 +13,13 @@ import Testing
 
 @MainActor
 final class AnalyticsTests {
-    private let analyticsConfiguration = AnalyticsConfiguration(host: "https://posthog.example.com",
-                                                                apiKey: "test-api-key")
     private let appSettings: AppSettings
     private let analytics: AnalyticsServiceProtocol
     private let analyticsClient: AnalyticsClientMock
     private var posthogMock: PHGPostHogMock
     
     init() {
-        appSettings = AppSettings.volatile(analyticsConfiguration: analyticsConfiguration)
+        appSettings = AppSettings.volatile()
         
         analyticsClient = AnalyticsClientMock()
         analyticsClient.isRunning = false

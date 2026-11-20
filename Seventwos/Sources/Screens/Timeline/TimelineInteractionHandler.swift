@@ -13,6 +13,7 @@ enum TimelineInteractionHandlerAction {
     case composer(action: TimelineComposerAction)
     
     case displayEmojiPicker(selectedEmojis: Set<String>, continuation: EmojiPickerScreenContinuation)
+    case willAddReaction(key: String, itemID: TimelineItemIdentifier)
     case displayReportContent(itemID: TimelineItemIdentifier, senderID: String)
     case displayMessageForwarding(itemID: TimelineItemIdentifier)
     case displayMediaUploadPreviewScreen(mediaURLs: [URL])
@@ -40,7 +41,7 @@ class TimelineInteractionHandler {
     private let voiceMessageRecorder: VoiceMessageRecorderProtocol
     private let userIndicatorController: UserIndicatorControllerProtocol
     private let appMediator: AppMediatorProtocol
-    private let appSettings: AppSettings
+    private let userSettings: UserSettings
     private let analyticsService: AnalyticsServiceProtocol
     private let emojiProvider: EmojiProviderProtocol
     private let linkMetadataProvider: LinkMetadataProviderProtocol
@@ -78,7 +79,6 @@ class TimelineInteractionHandler {
          voiceMessageRecorder: VoiceMessageRecorderProtocol,
          userIndicatorController: UserIndicatorControllerProtocol,
          appMediator: AppMediatorProtocol,
-         appSettings: AppSettings,
          analyticsService: AnalyticsServiceProtocol,
          emojiProvider: EmojiProviderProtocol,
          linkMetadataProvider: LinkMetadataProviderProtocol,
@@ -90,7 +90,7 @@ class TimelineInteractionHandler {
         self.voiceMessageRecorder = voiceMessageRecorder
         self.userIndicatorController = userIndicatorController
         self.appMediator = appMediator
-        self.appSettings = appSettings
+        userSettings = userSession.userSettings
         self.analyticsService = analyticsService
         self.emojiProvider = emojiProvider
         self.linkMetadataProvider = linkMetadataProvider
@@ -206,8 +206,7 @@ class TimelineInteractionHandler {
         case .react:
             displayEmojiPicker(for: itemID)
         case .toggleReaction(let key):
-            guard case let .event(_, eventOrTransactionID) = itemID else { fatalError() }
-            Task { await timelineController.toggleReaction(key, to: eventOrTransactionID) }
+            Task { await toggleReaction(key, on: itemID) }
         case .endPoll(let pollStartID):
             endPoll(pollStartID: pollStartID)
         case .pin:
@@ -224,8 +223,8 @@ class TimelineInteractionHandler {
             analyticsService.trackInteraction(name: .PinnedMessageListViewTimeline)
             guard let eventID = itemID.eventID else { return }
             actionsSubject.send(.viewInRoomTimeline(eventID: eventID))
-        case .downloadMedia, .selectMessages:
-            break // Handled by the media preview screen and the TimelineViewModel respectively.
+        case .downloadMedia:
+            break // Handled inline in the media preview screen.
         case .translate:
             guard let messageTimelineItem = timelineItem as? EventBasedMessageTimelineItemProtocol else { return }
             actionsSubject.send(.showTranslation(text: messageTimelineItem.body))
@@ -395,7 +394,7 @@ class TimelineInteractionHandler {
         actionsSubject.send(.composer(action: .setMode(mode: .default)))
     }
     
-    func sendCurrentVoiceMessage() async {
+    func sendCurrentVoiceMessage(inReplyToEventID: String?) async {
         guard let audioPlayerState = voiceMessageRecorder.previewAudioPlayerState, let recordingURL = voiceMessageRecorder.recordingURL else {
             actionsSubject.send(.displayErrorToast(L10n.errorFailedUploadingVoiceMessage))
             return
@@ -403,14 +402,16 @@ class TimelineInteractionHandler {
         
         analyticsService.trackComposer(inThread: false,
                                        isEditing: false,
-                                       isReply: false,
+                                       isReply: inReplyToEventID != nil,
                                        messageType: .VoiceMessage,
                                        startsThread: nil)
         
         actionsSubject.send(.composer(action: .setMode(mode: .previewVoiceMessage(state: audioPlayerState, waveform: .url(recordingURL), isUploading: true))))
         await voiceMessageRecorder.stopPlayback()
         
-        switch await voiceMessageRecorder.sendVoiceMessage(timelineController: timelineController, audioConverter: AudioConverter()) {
+        switch await voiceMessageRecorder.sendVoiceMessage(timelineController: timelineController,
+                                                           audioConverter: AudioConverter(),
+                                                           inReplyToEventID: inReplyToEventID) {
         case .success:
             await deleteCurrentVoiceMessage()
         case .failure(let error):
@@ -445,19 +446,17 @@ class TimelineInteractionHandler {
                 resumeVoiceMessagePlaybackAfterScrubbing = true
                 pausePlayingRecordedVoiceMessage()
             }
-        } else {
-            if resumeVoiceMessagePlaybackAfterScrubbing {
-                resumeVoiceMessagePlaybackAfterScrubbing = false
-                await startPlayingRecordedVoiceMessage()
-            }
+        } else if resumeVoiceMessagePlaybackAfterScrubbing {
+            resumeVoiceMessagePlaybackAfterScrubbing = false
+            await startPlayingRecordedVoiceMessage()
         }
     }
     
     // MARK: Audio Playback
     
     func changePlaybackSpeed(for itemID: TimelineItemIdentifier) {
-        let nextSpeed = appSettings.voiceMessagePlaybackSpeed.next
-        appSettings.voiceMessagePlaybackSpeed = nextSpeed
+        let nextSpeed = userSettings.app.voiceMessagePlaybackSpeed.next
+        userSettings.app.voiceMessagePlaybackSpeed = nextSpeed
         audioPlayerState(for: itemID)?.setPlaybackSpeed(nextSpeed)
     }
     
@@ -589,8 +588,8 @@ class TimelineInteractionHandler {
                                            title: L10n.commonVoiceMessage,
                                            duration: voiceMessageRoomTimelineItem.content.duration,
                                            waveform: voiceMessageRoomTimelineItem.content.waveform,
-                                           playbackSpeed: appSettings.voiceMessagePlaybackSpeed,
-                                           playbackSpeedPublisher: appSettings.voiceMessagePlaybackSpeedPublisher)
+                                           playbackSpeed: userSettings.app.voiceMessagePlaybackSpeed,
+                                           playbackSpeedPublisher: userSettings.app.voiceMessagePlaybackSpeedPublisher)
         mediaPlayerProvider.register(audioPlayerState: playerState)
         return playerState
     }
@@ -601,7 +600,7 @@ class TimelineInteractionHandler {
         guard let timelineItem = timelineController.timelineItems.firstUsingStableID(itemID),
               timelineItem.isReactable,
               let eventTimelineItem = timelineItem as? EventBasedTimelineItemProtocol,
-              case let .event(_, eventOrTransactionID) = itemID else {
+              case .event = itemID else {
             return
         }
         let selectedEmojis = Set(eventTimelineItem.properties.reactions.compactMap { $0.isHighlighted ? $0.key : nil })
@@ -611,10 +610,22 @@ class TimelineInteractionHandler {
         
         emojiPickerCancellable = Task { [weak self] in
             for await emoji in stream {
-                await self?.timelineController.toggleReaction(emoji, to: eventOrTransactionID)
+                await self?.toggleReaction(emoji, on: itemID)
             }
         }
         .asCancellable()
+    }
+    
+    func toggleReaction(_ key: String, on itemID: TimelineItemIdentifier) async {
+        guard case let .event(_, eventOrTransactionID) = itemID else { fatalError() }
+        
+        // Checked before toggling, the local echo would otherwise make an added reaction look like a removed one.
+        let item = timelineController.timelineItems.firstUsingStableID(itemID) as? EventBasedTimelineItemProtocol
+        if item?.properties.reactions.contains(where: { $0.key == key && $0.isHighlighted }) != true {
+            actionsSubject.send(.willAddReaction(key: key, itemID: itemID))
+        }
+        
+        await timelineController.toggleReaction(key, to: eventOrTransactionID)
     }
     
     func processItemTap(_ itemID: TimelineItemIdentifier) async -> TimelineControllerAction {
@@ -711,7 +722,6 @@ class TimelineInteractionHandler {
                                                       mediaPlayerProvider: mediaPlayerProvider,
                                                       userIndicatorController: userIndicatorController,
                                                       appMediator: appMediator,
-                                                      appSettings: appSettings,
                                                       analyticsService: analyticsService,
                                                       emojiProvider: emojiProvider,
                                                       linkMetadataProvider: linkMetadataProvider,

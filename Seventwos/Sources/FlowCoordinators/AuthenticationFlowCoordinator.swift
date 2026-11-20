@@ -10,18 +10,18 @@ import Combine
 import SwiftState
 import SwiftUI
 
-protocol AuthenticationFlowCoordinatorDelegate: AnyObject {
-    func authenticationFlowCoordinator(didLoginWithSession userSession: UserSessionProtocol)
+enum AuthenticationFlowCoordinatorAction {
+    case signInComplete(userSession: UserSessionProtocol)
 }
 
 class AuthenticationFlowCoordinator: FlowCoordinatorProtocol {
     private let authenticationService: AuthenticationServiceProtocol
-    private let bugReportService: BugReportServiceProtocol
-    private let navigationRootCoordinator: NavigationRootCoordinator
+    private let isAddingAccount: Bool
+    private let homeserverHistoryManager: HomeserverHistoryManager
     private let navigationStackCoordinator: NavigationStackCoordinator
+    private let bugReportService: BugReportServiceProtocol
     private let appMediator: AppMediatorProtocol
     private let appSettings: AppSettings
-    private let homeserverHistoryManager: HomeserverHistoryManager
     private let appHooks: AppHooks
     private let userIndicatorController: UserIndicatorControllerProtocol
     
@@ -94,25 +94,28 @@ class AuthenticationFlowCoordinator: FlowCoordinatorProtocol {
     // periphery:ignore - retaining purpose
     private var bugReportFlowCoordinator: BugReportFlowCoordinator?
     
-    weak var delegate: AuthenticationFlowCoordinatorDelegate?
+    private let actionsSubject: PassthroughSubject<AuthenticationFlowCoordinatorAction, Never> = .init()
+    var actionsPublisher: AnyPublisher<AuthenticationFlowCoordinatorAction, Never> {
+        actionsSubject.eraseToAnyPublisher()
+    }
     
     init(authenticationService: AuthenticationServiceProtocol,
+         isAddingAccount: Bool = false,
+         navigationStackCoordinator: NavigationStackCoordinator,
          bugReportService: BugReportServiceProtocol,
-         navigationRootCoordinator: NavigationRootCoordinator,
          appMediator: AppMediatorProtocol,
          appSettings: AppSettings,
          appHooks: AppHooks,
          userIndicatorController: UserIndicatorControllerProtocol) {
         self.authenticationService = authenticationService
+        self.isAddingAccount = isAddingAccount
+        homeserverHistoryManager = HomeserverHistoryManager(appSettings: appSettings)
+        self.navigationStackCoordinator = navigationStackCoordinator
         self.bugReportService = bugReportService
-        self.navigationRootCoordinator = navigationRootCoordinator
         self.appMediator = appMediator
         self.appSettings = appSettings
-        homeserverHistoryManager = HomeserverHistoryManager(appSettings: appSettings)
         self.appHooks = appHooks
         self.userIndicatorController = userIndicatorController
-        
-        navigationStackCoordinator = NavigationStackCoordinator()
         
         stateMachine = .init(state: .initial)
         configureStateMachine()
@@ -262,7 +265,7 @@ class AuthenticationFlowCoordinator: FlowCoordinatorProtocol {
         
         let parameters = AuthenticationStartScreenParameters(authenticationService: authenticationService,
                                                              provisioningParameters: provisioningParameters,
-                                                             isBugReportServiceEnabled: bugReportService.isEnabled,
+                                                             isAddingAccount: isAddingAccount,
                                                              appMediator: appMediator,
                                                              appSettings: appSettings,
                                                              mediaProvider: mediaProvider,
@@ -295,10 +298,6 @@ class AuthenticationFlowCoordinator: FlowCoordinatorProtocol {
             .store(in: &cancellables)
         
         navigationStackCoordinator.setRootCoordinator(coordinator)
-        
-        if fromState == .initial {
-            navigationRootCoordinator.setRootCoordinator(navigationStackCoordinator)
-        }
     }
     
     // MARK: - QR Code
@@ -378,7 +377,7 @@ class AuthenticationFlowCoordinator: FlowCoordinatorProtocol {
                                                      redirectURL: appSettings.oAuthRedirectURL,
                                                      presentationAnchor: presentationAnchor,
                                                      appMediator: appMediator,
-                                                     appHooks: appHooks,
+                                                     presenterHook: appHooks.oAuthAuthenticationPresenterHook,
                                                      userIndicatorController: userIndicatorController)
         oAuthPresenter = presenter
         
@@ -422,10 +421,11 @@ class AuthenticationFlowCoordinator: FlowCoordinatorProtocol {
     // MARK: - Bug Report
     
     private func startBugReportFlow() {
-        let coordinator = BugReportFlowCoordinator(parameters: .init(presentationMode: .sheet(navigationStackCoordinator),
-                                                                     userIndicatorController: userIndicatorController,
+        let coordinator = BugReportFlowCoordinator(parameters: .init(flow: .authentication(appSettings),
+                                                                     presentationMode: .sheet(navigationStackCoordinator),
                                                                      bugReportService: bugReportService,
-                                                                     userSession: nil))
+                                                                     bugReportHook: appHooks.bugReportHook,
+                                                                     userIndicatorController: userIndicatorController))
         coordinator.actionsPublisher.sink { [weak self] action in
             switch action {
             case .complete:
@@ -443,7 +443,7 @@ class AuthenticationFlowCoordinator: FlowCoordinatorProtocol {
     private func showDeveloperOptionsScreen() {
         let stackCoordinator = NavigationStackCoordinator()
         let coordinator = DeveloperOptionsScreenCoordinator(appSettings: appSettings,
-                                                            appHooks: appHooks,
+                                                            screenHook: appHooks.developerOptionsScreenHook,
                                                             clientProxy: nil)
         coordinator.actions
             .sink { action in
@@ -463,7 +463,7 @@ class AuthenticationFlowCoordinator: FlowCoordinatorProtocol {
     // MARK: - Completion
     
     private func userHasSignedIn(userSession: UserSessionProtocol) {
-        delegate?.authenticationFlowCoordinator(didLoginWithSession: userSession)
+        actionsSubject.send(.signInComplete(userSession: userSession))
         
         let newAccountProvider = authenticationService.homeserver.value.accountProvider
         homeserverHistoryManager.addServerToList(newAccountProvider.serverNameOrBaseURL)

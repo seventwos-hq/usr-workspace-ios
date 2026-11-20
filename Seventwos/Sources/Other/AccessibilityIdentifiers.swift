@@ -20,6 +20,7 @@ enum A11yIdentifiers {
     static let encryptionResetScreen = EncryptionResetScreen()
     static let encryptionResetPasswordScreen = EncryptionResetPasswordScreen()
     static let homeScreen = HomeScreen()
+    static let homeTabs = HomeTabs()
     static let loginScreen = LoginScreen()
     static let authenticationStartScreen = AuthenticationStartScreen()
     static let reportContent = ReportContent()
@@ -34,7 +35,6 @@ enum A11yIdentifiers {
     static let serverConfirmationScreen = ServerConfirmationScreen()
     static let sessionVerificationScreen = SessionVerificationScreen()
     static let settingsScreen = SettingsScreen()
-    static let softLogoutScreen = SoftLogoutScreen()
     static let startChatScreen = StartChatScreen()
     static let roomMemberDetailsScreen = RoomMemberDetailsScreen()
     static let createRoomScreen = CreateRoomScreen()
@@ -48,6 +48,7 @@ enum A11yIdentifiers {
     static let spacesScreen = SpacesScreen()
     static let spaceScreen = SpaceScreen()
     static let spaceAddRoomsScreen = SpaceAddRoomsScreen()
+    static let searchScreen = SearchScreen()
     static let spaceSettingsScreen = SpaceSettingsScreen()
     static let linkNewDeviceScreen = LinkNewDeviceScreen()
     
@@ -101,6 +102,8 @@ enum A11yIdentifiers {
     
     struct EncryptionResetScreen {
         let continueReset = "encryption_reset-continue_reset"
+        let signOut = "encryption_reset-sign_out"
+        let cancel = "encryption_reset-cancel"
     }
     
     struct EncryptionResetPasswordScreen {
@@ -118,6 +121,12 @@ enum A11yIdentifiers {
         func roomName(_ name: String) -> String {
             "\(roomNamePrefix):\(name)"
         }
+    }
+    
+    struct HomeTabs {
+        let chats = "home_tabs-chats"
+        let spaces = "home_tabs-spaces"
+        let search = "home_tabs-search"
     }
     
     struct InviteUsersScreen {
@@ -228,9 +237,9 @@ enum A11yIdentifiers {
     }
     
     struct SecureBackupRecoveryKeyScreen {
-        let generateRecoveryKey = "secure_backup_recovery_key-generate_recovery_key"
         let copyRecoveryKey = "secure_backup_recovery_key-copy_recovery_key"
         let done = "secure_backup_recovery_key-done"
+        let finish = "secure_backup_recovery_key-finish"
         let recoveryKeyField = "secure_backup_recovery_key-recovery_key_field"
         let confirm = "secure_backup_recovery_key-confirm"
     }
@@ -254,6 +263,7 @@ enum A11yIdentifiers {
     struct SettingsScreen {
         let done = "settings-done"
         let account = "settings-account"
+        let addAccount = "settings-add_account"
         let secureBackup = "settings-secure_backup"
         let notifications = "settings-notifications"
         let analytics = "settings-analytics"
@@ -264,17 +274,6 @@ enum A11yIdentifiers {
         let advancedSettings = "settings_advanced-settings"
         let developerOptions = "settings_developer-options"
         let logout = "settings-logout"
-    }
-    
-    struct SoftLogoutScreen {
-        let title = "soft_logout-title"
-        let message = "soft_logout-message"
-        let password = "soft_logout-password"
-        let forgotPassword = "soft_logout-forgot_password"
-        let next = "soft_logout-next"
-        let clearDataTitle = "soft_logout-clear_data_title"
-        let clearDataMessage = "soft_logout-clear_data_message"
-        let clearData = "soft_logout-clear_data"
     }
     
     struct StartChatScreen {
@@ -346,14 +345,17 @@ enum A11yIdentifiers {
     
     struct SpaceScreen {
         let moreMenu = "space_screen-more_menu"
-        let createRoom = "space_screen-create_room"
-        let addExistingRooms = "space_screen-add_existing_rooms"
-        let viewMembers = "space_screen-view_members"
-        let settings = "space_screen-settings"
     }
     
     struct SpaceAddRoomsScreen {
         let cancel = "space_add_rooms_screen-cancel"
+    }
+    
+    struct SearchScreen {
+        let roomNamePrefix = "search_screen-room_name"
+        func roomName(_ name: String) -> String {
+            "\(roomNamePrefix):\(name)"
+        }
     }
     
     struct SpaceSettingsScreen {

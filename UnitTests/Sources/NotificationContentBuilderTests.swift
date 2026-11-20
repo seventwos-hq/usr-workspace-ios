@@ -8,7 +8,6 @@
 import Dynamic
 import MatrixRustSDK
 import MatrixRustSDKMocks
-@testable import Seventwos
 import Testing
 import UserNotifications
 
@@ -19,11 +18,10 @@ nonisolated struct NotificationContentBuilderTests {
     
     init() async {
         notificationContent = .init()
-        let stringBuilder = RoomMessageEventStringBuilder(attributedStringBuilder: AttributedStringBuilder(mentionBuilder: PlainMentionBuilder()),
+        let stringBuilder = RoomMessageEventStringBuilder(attributedStringBuilder: AttributedStringBuilder(mentionBuilder: PlainMentionBuilder(), rendersEmoticonsAsImages: false),
                                                           style: .plain)
         mediaProvider = MediaProviderMock(.init())
         notificationContentBuilder = await NotificationContentBuilder(messageEventStringBuilder: stringBuilder,
-                                                                      notificationSoundName: UNNotificationSoundName("message.caf"),
                                                                       userSession: NSEUserSessionMock(.init()))
     }
     
@@ -226,6 +224,7 @@ nonisolated struct NotificationContentBuilderTests {
     mutating func liveLocationStartNotification() async {
         let event = TimelineEventSDKMock()
         event.eventIdReturnValue = UUID().uuidString
+        event.timestampReturnValue = 0
         event.contentReturnValue = .state(content: .beaconInfo)
         
         let notificationItem = NotificationItemProxyMock(.init(event: .timeline(event: event),
@@ -253,6 +252,7 @@ nonisolated struct NotificationContentBuilderTests {
     mutating func otherStateEventNotification() async {
         let event = TimelineEventSDKMock()
         event.eventIdReturnValue = UUID().uuidString
+        event.timestampReturnValue = 0
         event.contentReturnValue = .state(content: .roomName)
         
         let notificationItem = NotificationItemProxyMock(.init(event: .timeline(event: event),

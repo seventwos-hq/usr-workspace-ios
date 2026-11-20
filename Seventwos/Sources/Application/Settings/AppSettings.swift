@@ -15,25 +15,6 @@ import Foundation
 import Macros
 import SwiftUI
 
-/// Common settings between app and NSE
-nonisolated protocol CommonSettingsProtocol: AnyObject, Sendable {
-    var lastNotificationBootTime: TimeInterval? { get set }
-    var selectedNotificationTone: NotificationTone? { get set }
-    var lastKnownBadgeCount: Int { get set }
-    
-    var logLevel: LogLevel { get }
-    var traceLogPacks: Set<TraceLogPack> { get }
-    var bugReportRageshakeURL: RemotePreference<RageshakeConfiguration> { get }
-    var contentScannerURL: RemotePreference<URL?> { get }
-    var forceDisableE2EE: RemotePreference<Bool> { get }
-    var mapTilerConfiguration: RemotePreference<MapTilerConfiguration> { get }
-    
-    var enableOnlySignedDeviceIsolationMode: Bool { get }
-    var threadsEnabled: Bool { get }
-    var hideQuietNotificationAlerts: Bool { get }
-    var roomListNotificationCountEnabled: Bool { get }
-}
-
 nonisolated enum AppBuildType {
     case debug
     case nightly
@@ -52,7 +33,7 @@ nonisolated enum AppBuildType {
     }
 }
 
-/// Store application-specific settings.
+/// Store Element specific app settings.
 ///
 /// State is persisted in `UserDefaults`, which is thread-safe per Apple's documentation, hence `@unchecked`.
 final nonisolated class AppSettings: @unchecked Sendable {
@@ -68,11 +49,6 @@ final nonisolated class AppSettings: @unchecked Sendable {
     func resetAllSettings() {
         MXLog.warning("Resetting the AppSettings.")
         store.reset()
-    }
-    
-    func resetSessionSpecificSettings() {
-        MXLog.warning("Resetting the user session specific AppSettings.")
-        resetHasRunIdentityConfirmationOnboarding()
     }
     
     // MARK: - Hooks
@@ -98,7 +74,7 @@ final nonisolated class AppSettings: @unchecked Sendable {
                   accountProvisioningHost: String,
                   bugReportApplicationID: String,
                   analyticsTermsURL: URL?,
-                  mapTilerConfiguration: MapTilerConfiguration) {
+                  bundledMapTilerConfiguration: MapTilerConfiguration) {
         self.accountProviders = accountProviders
         self.allowOtherAccountProviders = allowOtherAccountProviders
         self.hideBrandChrome = hideBrandChrome
@@ -119,7 +95,7 @@ final nonisolated class AppSettings: @unchecked Sendable {
         self.accountProvisioningHost = accountProvisioningHost
         self.bugReportApplicationID = bugReportApplicationID
         self.analyticsTermsURL = analyticsTermsURL
-        self.mapTilerConfiguration = RemotePreference(mapTilerConfiguration)
+        self.bundledMapTilerConfiguration = bundledMapTilerConfiguration
     }
     
     // MARK: - Application
@@ -130,14 +106,23 @@ final nonisolated class AppSettings: @unchecked Sendable {
     @UserPreference
     var lastVersionLaunched: String?
     
-    /// The Set of room identifiers of invites that the user already saw in the invites list.
-    /// This Set is being used to implement badges for unread invites.
-    @UserPreference(defaultValue: Set<String>())
-    var seenInvites: Set<String>
+    /// Whether a user session has ever been set up on this device. Deliberately not cleared on
+    /// logout: it stops the Classic app migration prompt from reappearing when an Element X
+    /// user is signed out unexpectedly (invalidated token, corrupted storage, etc).
+    @UserPreference(defaultValue: false)
+    var hasSignedInBefore: Bool
     
     /// Defaults to `true` for new users, and we use a migration to set it to `false` for existing users.
     @UserPreference(defaultValue: true)
     var hasSeenNewSoundBanner: Bool
+    
+    /// Defaults to `true` so new users never see it. Developer options arms it for now, an upgrade migration will at launch.
+    @UserPreference(defaultValue: true)
+    var hasSeenMultiAccountAnnouncement: Bool
+    
+    /// Whether Settings lists the other accounts, rather than only showing their avatars.
+    @UserPreference(defaultValue: true)
+    var hasExpandedAccountPicker: Bool
     
     /// The initial set of account providers shown to the user in the authentication flow.
     ///
@@ -151,6 +136,8 @@ final nonisolated class AppSettings: @unchecked Sendable {
     
     /// The task identifier used for background app refresh. Also used in main target's the Info.plist
     let backgroundAppRefreshTaskIdentifier = "org.seventwos.workspace.background.refresh"
+    /// The task identifier used for the search index backfill. Also used in main target's the Info.plist
+    let searchBackfillTaskIdentifier = "org.seventwos.workspace.background.search-backfill"
     
     /// A URL where users can go read more about the app.
     private(set) var websiteURL: URL = "https://workspace.seventwos.org"
@@ -173,10 +160,13 @@ final nonisolated class AppSettings: @unchecked Sendable {
     /// A URL describing how history sharing works
     private(set) var historySharingDetailsURL: URL = "https://example.invalid/configure-seventwos-history-sharing-help"
     
-    /// Any domains that the web app may be hosted on - used for handling links.
+    /// Any domains that Element web may be hosted on - used for handling links.
     private(set) var elementWebHosts = ["workspace.seventwos.org"]
     /// The domain that account provisioning links will be hosted on - used for handling the links.
     private(set) var accountProvisioningHost = "workspace.seventwos.org"
+    /// The App Store URL for Element Pro, shown to the user when a homeserver requires that app.
+    /// **Note:** This property isn't overridable as it in unexpected for forks to come across the error (or to even have a "Pro" app).
+    let elementProAppStoreURL: URL = "https://apps.apple.com/app/element-pro-for-work/id6502951615"
     
     @UserPreference(defaultValue: AppAppearance.system)
     var appAppearance: AppAppearance
@@ -247,18 +237,8 @@ final nonisolated class AppSettings: @unchecked Sendable {
         pushGatewayBaseURL.appending(path: "_matrix/push/v1/notify")
     }
     
-    @UserPreference(defaultValue: true)
-    var enableNotifications: Bool
-    
-    @UserPreference(defaultValue: true)
-    var enableInAppNotifications: Bool
-    
     @UserPreference(defaultValue: false)
-    var hideQuietNotificationAlerts: Bool
-    
-    /// Tag describing which set of device specific rules a pusher executes.
-    @UserPreference
-    var pusherProfileTag: String?
+    var hasRunNotificationPermissionsOnboarding: Bool
     
     /// The device's last boot time as recorded by the NSE.
     @UserPreference
@@ -267,10 +247,6 @@ final nonisolated class AppSettings: @unchecked Sendable {
     /// The app icon badge value the app last computed from the SDK's unread notification counts.
     @UserPreference(defaultValue: 0)
     var lastKnownBadgeCount: Int
-    
-    /// The sound played when delivering noisy notifications. If nil, use the ElementX default
-    @UserPreference
-    var selectedNotificationTone: NotificationTone?
     
     // MARK: - Logging
     
@@ -282,7 +258,7 @@ final nonisolated class AppSettings: @unchecked Sendable {
     
     // MARK: - Bug report
     
-    let bugReportRageshakeURL: RemotePreference<RageshakeConfiguration> = .init(Secrets.rageshakeURL.map { .url(URL(string: $0)!) } ?? .disabled) // swiftlint:disable:this force_unwrapping
+    let bundledBugReportRageshakeConfiguration: RageshakeConfiguration = Secrets.rageshakeURL.map { .url(URL(string: $0)!) } ?? .disabled // swiftlint:disable:this force_unwrapping
     let bugReportSentryURL: URL? = Secrets.sentryDSN.map { URL(string: $0)! } // swiftlint:disable:this force_unwrapping
     let bugReportSentryRustURL: URL? = Secrets.sentryRustDSN.map { URL(string: $0)! } // swiftlint:disable:this force_unwrapping
     /// The name allocated by the bug report server
@@ -317,31 +293,12 @@ final nonisolated class AppSettings: @unchecked Sendable {
     }
     
     /// Whether the user has opted in to send analytics.
+    ///
+    /// **Note:** Opt-in is app-wide, not per-session.
     @UserPreference(defaultValue: AnalyticsConsentState.unknown)
     var analyticsConsentState: AnalyticsConsentState
     
-    /// Whether a user session has ever been set up on this device. Deliberately not cleared on
-    /// logout: it stops the Classic app migration prompt from reappearing when an Element X
-    /// user is signed out unexpectedly (invalidated token, corrupted storage, etc).
-    @UserPreference(defaultValue: false)
-    var hasSignedInBefore: Bool
-    
-    @UserPreference(defaultValue: false)
-    var hasRunNotificationPermissionsOnboarding: Bool
-    
-    @UserPreference(defaultValue: false)
-    var hasRunIdentityConfirmationOnboarding: Bool
-    
-    @UserPreference(defaultValue: false)
-    var hasRequestedLocationAlwaysLocationAuthorization: Bool
-    
-    @UserPreference(defaultValue: [FrequentlyUsedEmoji]())
-    var frequentlyUsedSystemEmojis: [FrequentlyUsedEmoji]
-    
     // MARK: - Live Location
-    
-    @UserPreference(key: "liveLocationSharingTimeoutDatesByRoomID", defaultValue: [String: LiveLocationSession]())
-    var liveLocationSharingSessionsByRoomID: [String: LiveLocationSession]
     
     @UserPreference(defaultValue: 10)
     var liveLocationMinimumDistanceUpdate: Int
@@ -349,13 +306,8 @@ final nonisolated class AppSettings: @unchecked Sendable {
     @UserPreference(defaultValue: false)
     var liveLocationDisclaimerDisplayed: Bool
     
-    // MARK: - Home Screen
-    
-    @UserPreference(defaultValue: RoomListActivityVisibility.current)
-    var roomListActivityVisibility: RoomListActivityVisibility
-    
     @UserPreference(defaultValue: false)
-    var roomListNotificationCountEnabled: Bool
+    var hasRequestedLocationAlwaysLocationAuthorization: Bool
     
     // MARK: - Room Screen
     
@@ -367,6 +319,9 @@ final nonisolated class AppSettings: @unchecked Sendable {
     
     @UserPreference(defaultValue: AudioPlaybackSpeed.default)
     var voiceMessagePlaybackSpeed: AudioPlaybackSpeed
+    
+    @UserPreference(defaultValue: [FrequentlyUsedEmoji]())
+    var frequentlyUsedSystemEmojis: [FrequentlyUsedEmoji]
     
     /// Whether or not to show a warning on the media caption composer so the user knows
     /// that captions might not be visible to users who are using other Matrix clients.
@@ -394,22 +349,16 @@ final nonisolated class AppSettings: @unchecked Sendable {
     // MARK: - Maps
     
     /// The locally-bundled MapTiler configuration.
-    static let bundledMapTilerConfiguration = MapTilerConfiguration(baseURL: "https://api.maptiler.com/maps",
-                                                                    apiKey: Secrets.mapLibreAPIKey,
-                                                                    lightStyleID: "9bc819c8-e627-474a-a348-ec144fe3d810",
-                                                                    darkStyleID: "dea61faf-292b-4774-9660-58fcef89a7f3")
-    
-    /// The MapTiler configuration used to build map URLs, which defaults to the bundled one.
-    private(set) var mapTilerConfiguration = RemotePreference(AppSettings.bundledMapTilerConfiguration)
-    
-    // MARK: - Presence
-    
-    @UserPreference(defaultValue: true)
-    var sharePresence: Bool
+    private(set) var bundledMapTilerConfiguration = MapTilerConfiguration(baseURL: "https://api.maptiler.com/maps",
+                                                                          apiKey: Secrets.mapLibreAPIKey,
+                                                                          lightStyleID: "9bc819c8-e627-474a-a348-ec144fe3d810",
+                                                                          darkStyleID: "dea61faf-292b-4774-9660-58fcef89a7f3")
     
     // MARK: - Feature Flags
     
-    /// Others
+    @UserPreference(defaultValue: AppBuildType.current != .release)
+    var developerOptionsEnabled: Bool
+    
     @UserPreference(defaultValue: false)
     var fuzzyRoomListSearchEnabled: Bool
     
@@ -418,6 +367,10 @@ final nonisolated class AppSettings: @unchecked Sendable {
     
     @UserPreference(defaultValue: false)
     var mentionsFilterEnabled: Bool
+    
+    /// Puts the invites filter first while there are invites and hides it when there are none.
+    @UserPreference(defaultValue: false)
+    var prominentInvitesFilterEnabled: Bool
     
     /// Configuration to enable only signed device isolation mode for  crypto. In this mode only devices signed by their owner will be considered in e2ee rooms.
     @UserPreference(defaultValue: false)
@@ -429,10 +382,7 @@ final nonisolated class AppSettings: @unchecked Sendable {
     @UserPreference(defaultValue: false)
     var threadsEnabled: Bool
     
-    @UserPreference(defaultValue: false)
-    var messageMultiSelectEnabled: Bool
-    
-    @UserPreference(defaultValue: ProcessInfo().isiOSAppOnMac)
+    @UserPreference(key: "globalSearchEnabledV2", defaultValue: true)
     var globalSearchEnabled: Bool
     
     @UserPreference(defaultValue: false)
@@ -446,30 +396,52 @@ final nonisolated class AppSettings: @unchecked Sendable {
     @UserPreference(defaultValue: false)
     var galleryEnabled: Bool
     
+    /// Adds a pencil next to crop in the media upload preview, to draw on pictures before sending them.
+    @UserPreference(defaultValue: false)
+    var imageDrawingEnabled: Bool
+    
     @UserPreference(defaultValue: false)
     var jumpToReadMarkerEnabled: Bool
+    
+    @UserPreference(defaultValue: AppBuildType.current != .release)
+    var reactionCelebrationsEnabled: Bool
     
     @UserPreference(defaultValue: false)
     var linkNewDeviceEnabled: Bool
     
-    @UserPreference(defaultValue: false)
-    var automaticBackPaginationEnabled: Bool
-    
     @UserPreference(key: "clientPausingAndResumingEnabledV2", defaultValue: false, volatile: true)
     var clientPausingAndResumingEnabled: Bool
     
-    @UserPreference(defaultValue: AppBuildType.current != .release)
-    var developerOptionsEnabled: Bool
+    @UserPreference(defaultValue: false)
+    var hideQuietNotificationAlerts: Bool
     
-    init(store: UserDefaultsProtocol,
-         analyticsConfiguration: AnalyticsConfiguration? = AppSettings.makeAnalyticsConfiguration()) {
+    /// Runs calls through the native matrix-rust-rtc stack instead of the Element Call web view.
+    @UserPreference(defaultValue: false)
+    var nativeCallEnabled: Bool
+    
+    @UserPreference(defaultValue: false)
+    var multiAccountEnabled: Bool
+    
+    /// Lets the add account flow start once `multiAccountEnabled` shows its entry points. Not a user preference, so testers
+    /// can't add a second account while signing out of one isn't safe yet. Only set it to `true` locally, for development.
+    let addAccountFlowEnabled = false
+    
+    /// Lets it snow on top of the whole app.
+    @UserPreference(defaultValue: false)
+    var snowEnabled: Bool
+    
+    init(store: UserDefaultsProtocol) {
         self.store = store
-        self.analyticsConfiguration = analyticsConfiguration
     }
     
-    static func volatile(analyticsConfiguration: AnalyticsConfiguration? = AppSettings.makeAnalyticsConfiguration()) -> AppSettings {
-        AppSettings(store: VolatileUserDefaults(), analyticsConfiguration: analyticsConfiguration)
+    func userSettings(for userID: String) -> UserSettings {
+        UserSettings(appSettings: self, accountSettings: .init(userID: userID,
+                                                               store: store,
+                                                               bundledMapTilerConfiguration: bundledMapTilerConfiguration,
+                                                               bundledBugReportRageshakeConfiguration: bundledBugReportRageshakeConfiguration))
+    }
+    
+    static func volatile() -> AppSettings {
+        AppSettings(store: VolatileUserDefaults())
     }
 }
-
-nonisolated extension AppSettings: CommonSettingsProtocol { }

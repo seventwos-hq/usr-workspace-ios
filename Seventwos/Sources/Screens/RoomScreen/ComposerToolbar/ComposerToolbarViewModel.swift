@@ -42,6 +42,21 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
     
     private var currentLinkData: WysiwygLinkData?
     
+    private struct ComposerContent: Equatable {
+        let plain: String
+        let html: String?
+    }
+    
+    private var originalEditContent: ComposerContent?
+    
+    private var currentContent: ComposerContent {
+        if context.composerFormattingEnabled {
+            .init(plain: wysiwygViewModel.content.markdown, html: wysiwygViewModel.content.html)
+        } else {
+            .init(plain: plainComposerContent.text, html: nil)
+        }
+    }
+    
     private var replyLoadingTask: Task<Void, Never>?
     
     init(initialText: String? = nil,
@@ -50,7 +65,7 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
          completionSuggestionService: CompletionSuggestionServiceProtocol,
          mediaProvider: MediaProviderProtocol,
          mentionDisplayHelper: MentionDisplayHelper,
-         appSettings: AppSettings,
+         userSettings: UserSettings,
          analyticsService: AnalyticsServiceProtocol,
          composerDraftService: ComposerDraftServiceProtocol) {
         self.initialText = initialText
@@ -65,7 +80,7 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
         
         super.init(initialViewState: ComposerToolbarViewState(wysiwygViewModel: wysiwygViewModel,
                                                               isRoomEncrypted: roomProxy.infoPublisher.value.isEncrypted,
-                                                              isLocationSharingEnabled: appSettings.mapTilerConfiguration.publisher.value.isEnabled,
+                                                              isLocationSharingEnabled: userSettings.account.mapTilerConfiguration.publisher.value.isEnabled,
                                                               bindings: .init()),
                    mediaProvider: mediaProvider)
         
@@ -188,10 +203,16 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
             
             switch state.composerMode {
             case .previewVoiceMessage:
-                actionsSubject.send(.voiceMessage(.send))
+                actionsSubject.send(.voiceMessage(.send(inReplyToEventID: state.voiceMessageReply?.eventID)))
             case .recordVoiceMessage:
                 MXLog.warning("Ignoring send action while recording a voice message.")
             default:
+                if state.composerMode.isEdit, currentContent == originalEditContent {
+                    MXLog.info("Edit content is unchanged, cancelling the edit instead of sending it.")
+                    cancelEdit()
+                    return
+                }
+                
                 if context.composerFormattingEnabled {
                     actionsSubject.send(.sendMessage(plain: wysiwygViewModel.content.markdown,
                                                      html: wysiwygViewModel.content.html,
@@ -204,15 +225,13 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
         case .editLastMessage:
             actionsSubject.send(.editLastMessage)
         case .cancelReply:
-            set(mode: .default)
-        case .cancelEdit:
-            if let draft = draftService.loadVolatileDraft() {
-                handleLoadDraft(draft)
-                draftService.clearVolatileDraft()
+            if state.isVoiceMessageModeActivated {
+                state.voiceMessageReply = nil
             } else {
-                set(text: "")
                 set(mode: .default)
             }
+        case .cancelEdit:
+            cancelEdit()
         case .attach(let attachment):
             state.bindings.composerFocused = false
             actionsSubject.send(.attach(attachment))
@@ -264,6 +283,10 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
                 set(text: htmlText)
             } else {
                 set(text: plainText)
+            }
+            
+            if state.composerMode.isEdit {
+                originalEditContent = currentContent
             }
         case .setFocus:
             state.bindings.composerFocused = true
@@ -330,7 +353,13 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
                     return
                 }
                 
-                set(mode: .reply(eventID: eventID, replyDetails: reply.details, isThread: reply.isThreaded))
+                let replyMode = ComposerMode.reply(eventID: eventID, replyDetails: reply.details, isThread: reply.isThreaded)
+                // A voice message may have been started while the reply was loading.
+                if state.voiceMessageReply?.eventID == eventID {
+                    state.voiceMessageReply = replyMode.reply
+                } else if state.composerMode.replyEventID == eventID {
+                    set(mode: replyMode)
+                }
             }
         }
     }
@@ -339,9 +368,11 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
         let plainText: String
         let htmlText: String?
         let type: ComposerDraftProxy.ComposerDraftType
+        // Keep the reply of a voice message being recorded.
+        let composerMode = state.voiceMessageReply?.composerMode ?? state.composerMode
         
         if context.composerFormattingEnabled {
-            if wysiwygViewModel.isContentEmpty, state.composerMode == .default {
+            if wysiwygViewModel.isContentEmpty, composerMode == .default {
                 if isVolatile {
                     draftService.clearVolatileDraft()
                 } else {
@@ -354,7 +385,7 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
             plainText = wysiwygViewModel.content.markdown
             htmlText = wysiwygViewModel.content.html
         } else {
-            if context.plainComposerText.string.isEmpty, state.composerMode == .default {
+            if context.plainComposerText.string.isEmpty, composerMode == .default {
                 if isVolatile {
                     draftService.clearVolatileDraft()
                 } else {
@@ -368,7 +399,7 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
             htmlText = nil
         }
         
-        switch state.composerMode {
+        switch composerMode {
         case .default:
             type = .newMessage
         case .edit(.eventID(let originalEventID), .default):
@@ -451,6 +482,16 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
         actionsSubject.send(.sendMessage(plain: plainComposerContent.text, html: nil,
                                          mode: state.composerMode,
                                          intentionalMentions: .init(userIDs: plainComposerContent.mentionedUserIDs, atRoom: plainComposerContent.containsAtRoomMention)))
+    }
+    
+    private func cancelEdit() {
+        if let draft = draftService.loadVolatileDraft() {
+            handleLoadDraft(draft)
+            draftService.clearVolatileDraft()
+        } else {
+            set(text: "")
+            set(mode: .default)
+        }
     }
     
     private func processVoiceMessageAction(_ action: ComposerToolbarVoiceMessageAction) {
@@ -569,13 +610,34 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
     }
     
     private func set(mode: ComposerMode) {
-        if state.composerMode.isLoadingReply, state.composerMode.replyEventID != mode.replyEventID {
+        if state.composerMode.isLoadingReply, state.composerMode.replyEventID != mode.replyEventID, mode.isTextEditingEnabled {
             replyLoadingTask?.cancel()
         }
         
         guard mode != state.composerMode else { return }
         
+        switch (state.composerMode, mode) {
+        case (.reply, .recordVoiceMessage):
+            state.voiceMessageReply = state.composerMode.reply
+        case (_, .recordVoiceMessage), (_, .previewVoiceMessage):
+            break
+        case (.recordVoiceMessage, .reply), (.previewVoiceMessage(_, _, isUploading: false), .reply):
+            // Replying to another message keeps the voice message and sends it as a reply to that one instead.
+            state.voiceMessageReply = mode.reply
+            return
+        case (.recordVoiceMessage, .default), (.previewVoiceMessage(_, _, isUploading: false), .default):
+            guard let voiceMessageReply = state.voiceMessageReply else { break }
+            // The voice message was discarded, go back to replying without popping the keyboard.
+            state.voiceMessageReply = nil
+            state.composerMode = voiceMessageReply.composerMode
+            return
+        default:
+            // Any other mode (sent voice message or edit) drops the stored reply.
+            state.voiceMessageReply = nil
+        }
+        
         state.composerMode = mode
+        originalEditContent = nil
         switch mode {
         case .default:
             break
@@ -796,7 +858,7 @@ private final class ComposerMentionReplacer: MentionReplacer {
 // MARK: - Mocks
 
 extension ComposerToolbarViewModel {
-    enum MockMode { case editing, recordVoiceMessage, previewVoiceMessage(isUploading: Bool), reply(isLoading: Bool) }
+    enum MockMode { case editing, recordVoiceMessage, previewVoiceMessage(isUploading: Bool, isReplying: Bool = false), reply(isLoading: Bool) }
     
     static func mock(focused: Bool = false,
                      message: String = "",
@@ -822,18 +884,25 @@ extension ComposerToolbarViewModel {
                                                  completionSuggestionService: CompletionSuggestionServiceMock(configuration: .init(suggestions: suggestions)),
                                                  mediaProvider: MediaProviderMock(.init()),
                                                  mentionDisplayHelper: ComposerMentionDisplayHelper.mock,
-                                                 appSettings: .volatile(),
+                                                 userSettings: .mock(),
                                                  analyticsService: AnalyticsServiceMock(.init()),
                                                  composerDraftService: ComposerDraftServiceMock(.init()))
         viewModel.state.bindings.composerFocused = focused
         viewModel.state.bindings.plainComposerText = NSAttributedString(string: message)
+        
+        let loadedReplyDetails = TimelineItemReplyDetails.loaded(sender: .init(id: "", displayName: "Test"),
+                                                                 eventID: "",
+                                                                 eventContent: .message(.text(.init(body: "Hello World!"))))
         
         switch mockMode {
         case .editing:
             viewModel.state.composerMode = .edit(originalEventOrTransactionID: .eventID(""), type: .default)
         case .recordVoiceMessage:
             viewModel.state.composerMode = .recordVoiceMessage(state: AudioRecorderState())
-        case .previewVoiceMessage(let isUploading):
+        case .previewVoiceMessage(let isUploading, let isReplying):
+            if isReplying {
+                viewModel.state.voiceMessageReply = .init(eventID: UUID().uuidString, replyDetails: loadedReplyDetails, isThread: false)
+            }
             viewModel.state.composerMode = .previewVoiceMessage(state: AudioPlayerState(id: .recorderPreview,
                                                                                         title: L10n.commonVoiceMessage,
                                                                                         duration: 10.0),
@@ -843,9 +912,7 @@ extension ComposerToolbarViewModel {
             let replyDetails: TimelineItemReplyDetails = if isLoading {
                 .loading(eventID: "")
             } else {
-                .loaded(sender: .init(id: "", displayName: "Test"),
-                        eventID: "",
-                        eventContent: .message(.text(.init(body: "Hello World!"))))
+                loadedReplyDetails
             }
             viewModel.state.composerMode = .reply(eventID: UUID().uuidString, replyDetails: replyDetails, isThread: false)
         case nil:

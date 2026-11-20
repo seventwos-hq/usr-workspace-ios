@@ -9,7 +9,7 @@ struct RunTests: AsyncParsableCommand {
                                                     
                                                     Examples:
                                                       swift run tools run-tests --scheme UnitTests
-                                                      swift run tools run-tests --scheme UITests --device iPhone --os-version 26.5
+                                                      swift run tools run-tests --scheme UITests --device iPhone --os-version 27.0
                                                       swift run tools run-tests --scheme PreviewTests --create-simulator-name "iPhone SE (3rd generation)" \
                                                         --create-simulator-type com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation
                                                     """)
@@ -20,7 +20,7 @@ struct RunTests: AsyncParsableCommand {
     @Option(help: "The simulator device name to run tests on (e.g. 'iPhone 17').")
     var device = "iPhone 17"
     
-    @Option(help: "The iOS version to use for the simulator runtime (e.g. '26.5').")
+    @Option(help: "The iOS version to use for the simulator runtime (e.g. '27.0').")
     var osVersion = CI.defaultOSVersion
     
     var runtime: String {
@@ -38,6 +38,9 @@ struct RunTests: AsyncParsableCommand {
     
     @Option(help: "Only run a specific test (format: 'ClassName/testName').")
     var testName: String?
+    
+    @Option(help: "Only run a specific test plan configuration (e.g. 'English').")
+    var testConfiguration: String?
     
     @Flag(help: "Run the tests on a saturated CPU to reproduce the flakiness of a busy CI runner.")
     var constrained = false
@@ -136,7 +139,7 @@ struct RunTests: AsyncParsableCommand {
     private func executeXcodeBuild() async throws {
         var command = "set -o pipefail && xcodebuild test"
         command += " -scheme \(scheme)"
-        command += " -destination 'platform=iOS Simulator,name=\(device),OS=\(osVersion)'"
+        command += " -destination 'platform=iOS Simulator,name=\(device),OS=\(osVersion),arch=arm64'"
         command += " -resultBundlePath \(resultBundlePath)"
         
         // Use a dedicated compilation cache for incremental builds on CI (as Xcode's DerivedData
@@ -147,6 +150,7 @@ struct RunTests: AsyncParsableCommand {
         
         // Use xcodebuild's native retry support to re-run only failing tests
         // instead of re-running the entire suite. retries=0 means no retries (single run).
+        // No -test-repetition-relaunch-enabled: it re-runs the whole selection after any failure.
         if retries > 0 {
             // -test-iterations is the total number of attempts (initial + retries)
             command += " -retry-tests-on-failure"
@@ -157,6 +161,10 @@ struct RunTests: AsyncParsableCommand {
         
         if let testName {
             command += " -only-testing:\(scheme)/\(testName)"
+        }
+        
+        if let testConfiguration {
+            command += " -only-test-configuration '\(testConfiguration)'"
         }
         
         command += " | \(formatter)"

@@ -169,8 +169,8 @@ class MediaEventsTimelineScreenViewModel: MediaEventsTimelineScreenViewModelType
         sheetModel.actions.sink { [weak self] action in
             guard let self else { return }
             switch action {
-            case .displayMessageForwarding(let forwardingItem):
-                displayMessageForwarding(forwardingItem: forwardingItem)
+            case .displayMessageForwarding(let forwardingPayload):
+                displayMessageForwarding(forwardingPayload: forwardingPayload)
             case .viewInRoomTimeline(let itemID):
                 actionsSubject.send(.viewInRoomTimeline(itemID))
             case .dismiss:
@@ -231,7 +231,7 @@ class MediaEventsTimelineScreenViewModel: MediaEventsTimelineScreenViewModelType
         state.groups = newGroups
         galleryItemIDs = newGalleryItemIDs
         
-        state.isBackPaginating = timelineViewState.timelineState.paginationState.backward == .paginating
+        state.canBackPaginate = timelineViewState.timelineState.paginationState.backward != .endReached
         state.shouldShowEmptyState = newGroups.isEmpty && timelineViewState.timelineState.paginationState.backward == .endReached
         backPaginateIfNecessary(backPaginationState: timelineViewState.timelineState.paginationState.backward)
     }
@@ -246,8 +246,8 @@ class MediaEventsTimelineScreenViewModel: MediaEventsTimelineScreenViewModelType
         viewModel.actions.sink { [weak self] action in
             guard let self else { return }
             switch action {
-            case .displayMessageForwarding(let forwardingItem):
-                displayMessageForwarding(forwardingItem: forwardingItem)
+            case .displayMessageForwarding(let forwardingPayload):
+                displayMessageForwarding(forwardingPayload: forwardingPayload)
             case .viewInRoomTimeline(let itemID):
                 state.bindings.mediaPreviewViewModel = nil
                 actionsSubject.send(.viewInRoomTimeline(itemID))
@@ -268,12 +268,46 @@ class MediaEventsTimelineScreenViewModel: MediaEventsTimelineScreenViewModelType
         }
     }
     
-    private func displayMessageForwarding(forwardingItem: MessageForwardingItem) {
+    private func displayMessageForwarding(forwardingPayload: MessageForwardingPayload) {
         state.bindings.mediaPreviewViewModel = nil
         state.bindings.mediaPreviewSheetViewModel = nil
         // We need a small delay because we need to wait for the presented sheet to be fully dismissed.
         DispatchQueue.main.asyncAfter(deadline: .now() + TimelineMediaPreviewViewModel.displayMessageForwardingDelay) {
-            self.actionsSubject.send(.displayMessageForwarding(forwardingItem))
+            self.actionsSubject.send(.displayMessageForwarding(forwardingPayload))
+        }
+    }
+}
+
+private extension GalleryRoomTimelineItem {
+    /// Represents the gallery's attachments of the given types as though each had been sent as an
+    /// individual message, so that the screen can list them alongside the room's other media. Each one
+    /// keeps the gallery's event ID but is given its own unique ID so that they remain distinct.
+    func itemsAsIndividualMessages(allowedTypes: [TimelineAllowedGalleryItemType]?) -> [(mediaIndex: Int, item: EventBasedMessageTimelineItemProtocol)] {
+        guard let eventOrTransactionID = id.eventOrTransactionID else { return [] }
+        
+        return content.items(matching: allowedTypes).compactMap { mediaIndex, galleryItem in
+            let itemID = TimelineItemIdentifier.event(uniqueID: .init("\(id.uniqueID.value)-\(mediaIndex)"),
+                                                      eventOrTransactionID: eventOrTransactionID)
+            
+            let item: EventBasedMessageTimelineItemProtocol? = switch galleryItem {
+            case .image(_, let content):
+                ImageRoomTimelineItem(id: itemID, timestamp: timestamp, isOutgoing: isOutgoing, isEditable: isEditable,
+                                      canBeRepliedTo: canBeRepliedTo, sender: sender, content: content, properties: properties)
+            case .video(_, let content):
+                VideoRoomTimelineItem(id: itemID, timestamp: timestamp, isOutgoing: isOutgoing, isEditable: isEditable,
+                                      canBeRepliedTo: canBeRepliedTo, sender: sender, content: content, properties: properties)
+            case .audio(_, let content):
+                AudioRoomTimelineItem(id: itemID, timestamp: timestamp, isOutgoing: isOutgoing, isEditable: isEditable,
+                                      canBeRepliedTo: canBeRepliedTo, sender: sender, content: content, properties: properties)
+            case .file(_, let content):
+                FileRoomTimelineItem(id: itemID, timestamp: timestamp, isOutgoing: isOutgoing, isEditable: isEditable,
+                                     canBeRepliedTo: canBeRepliedTo, sender: sender, content: content, properties: properties)
+            case .other:
+                nil // Filtered out above, as there's nothing to show for it.
+            }
+            
+            guard let item else { return nil }
+            return (mediaIndex, item)
         }
     }
 }

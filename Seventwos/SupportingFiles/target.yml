@@ -75,6 +75,10 @@ targets:
         appGroupIdentifier: $(APP_GROUP_IDENTIFIER)
         baseBundleIdentifier: $(BASE_BUNDLE_IDENTIFIER)
         keychainAccessGroupIdentifier: $(KEYCHAIN_ACCESS_GROUP_IDENTIFIER)
+        classicAppGroupIdentifier: $(CLASSIC_APP_GROUP_IDENTIFIER)
+        classicAppKeychainServiceIdentifier: $(CLASSIC_APP_KEYCHAIN_SERVICE_IDENTIFIER)
+        classicAppKeychainAccessGroupIdentifier: $(CLASSIC_APP_KEYCHAIN_ACCESS_GROUP_IDENTIFIER)
+        classicAppDeepLinkURL: $(CLASSIC_APP_DEEP_LINK_URL)
         productionAppName: $(PRODUCTION_APP_NAME)
         isNightlyBuild: $(IS_NIGHTLY_BUILD)
         ITSAppUsesNonExemptEncryption: false
@@ -96,12 +100,16 @@ targets:
           location
         ]
         BGTaskSchedulerPermittedIdentifiers: [
-          org.seventwos.workspace.background.refresh
+          org.seventwos.workspace.background.refresh,
+          org.seventwos.workspace.background.search-backfill
         ]
         UTExportedTypeDeclarations:
         - UTTypeConformsTo: [public.text]
           UTTypeDescription: Mention Pills
           UTTypeIdentifier: $(PILLS_UT_TYPE_IDENTIFIER)
+        - UTTypeConformsTo: [public.data]
+          UTTypeDescription: Custom Emoticons
+          UTTypeIdentifier: $(EMOTICONS_UT_TYPE_IDENTIFIER)
         CFBundleDocumentTypes:
         - CFBundleTypeName: Mention Pills
           CFBundleTypeRole: Viewer
@@ -114,16 +122,23 @@ targets:
       properties:
         aps-environment: development
         com.apple.developer.associated-domains:
-        - applinks:workspace.seventwos.org
+        - applinks:element.io
+        - applinks:app.element.io
+        - applinks:staging.element.io
+        - applinks:develop.element.io
+        - applinks:mobile.element.io
+        - applinks:matrix.to
         # - applinks:localhost?mode=developer # developer mode only works with https (but self-signed is fine).
         - webcredentials:workspace.seventwos.org
         com.apple.developer.usernotifications.communication: true
         com.apple.security.app-sandbox: true
         com.apple.security.application-groups:
         - $(APP_GROUP_IDENTIFIER)
+        - $(CLASSIC_APP_GROUP_IDENTIFIER)
         com.apple.security.network.client: true
         keychain-access-groups:
         - $(KEYCHAIN_ACCESS_GROUP_IDENTIFIER)
+        - $(CLASSIC_APP_KEYCHAIN_ACCESS_GROUP_IDENTIFIER)
 
     settings:
       base:
@@ -137,8 +152,9 @@ targets:
         SWIFT_OBJC_BRIDGING_HEADER: Seventwos/SupportingFiles/Seventwos-Bridging-Header.h
         SWIFT_OBJC_INTERFACE_HEADER_NAME: GeneratedInterface-Swift.h
         PILLS_UT_TYPE_IDENTIFIER: $(BASE_BUNDLE_IDENTIFIER).pills
+        EMOTICONS_UT_TYPE_IDENTIFIER: $(BASE_BUNDLE_IDENTIFIER).emoticons
         DEVELOPMENT_ASSET_PATHS: Components/DevelopmentAssets/Media
-        SWIFT_VERSION: 6.2
+        SWIFT_VERSION: 6
         SWIFT_APPROACHABLE_CONCURRENCY: YES
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         OTHER_SWIFT_FLAGS:
@@ -274,13 +290,13 @@ targets:
       implicit: true
       link: false
       embed: true
+    - package: ElementCall
+      product: ElementCall
     - package: PostHog
     - package: SwiftState
     - package: GZIP
     - package: Sentry
-      products: 
-        - Sentry
-        - SentrySwiftUI
+      product: Sentry-Static
     - package: Version
     - package: Emojibase
     - package: WysiwygComposer

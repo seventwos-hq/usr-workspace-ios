@@ -9,7 +9,7 @@
 import SwiftUI
 
 enum MediaEventsTimelineScreenViewModelAction {
-    case displayMessageForwarding(MessageForwardingItem)
+    case displayMessageForwarding(MessageForwardingPayload)
     case viewInRoomTimeline(TimelineItemIdentifier)
 }
 
@@ -25,7 +25,7 @@ struct MediaEventsTimelineGroup: Identifiable {
 }
 
 struct MediaEventsTimelineScreenViewState: BindableState {
-    var isBackPaginating = false
+    var canBackPaginate = false
     var shouldShowEmptyState = false
     
     var screenMode: MediaEventsTimelineScreenMode

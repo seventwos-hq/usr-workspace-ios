@@ -11,8 +11,7 @@ import SwiftUI
 
 struct IdentityConfirmationScreenCoordinatorParameters {
     let userSession: UserSessionProtocol
-    let appSettings: AppSettings
-    let userIndicatorController: UserIndicatorControllerProtocol
+    let userSettings: UserSettings
 }
 
 enum IdentityConfirmationScreenCoordinatorAction {
@@ -20,8 +19,8 @@ enum IdentityConfirmationScreenCoordinatorAction {
     case recoveryKey
     /// Only possible in debug builds.
     case skip
-    case reset
-    case logoutConfirmed
+    case reset(hasConfirmationOptions: Bool)
+    case logoutWithoutConfirmation
 }
 
 final class IdentityConfirmationScreenCoordinator: CoordinatorProtocol {
@@ -35,9 +34,7 @@ final class IdentityConfirmationScreenCoordinator: CoordinatorProtocol {
     }
     
     init(parameters: IdentityConfirmationScreenCoordinatorParameters) {
-        viewModel = IdentityConfirmationScreenViewModel(userSession: parameters.userSession,
-                                                        appSettings: parameters.appSettings,
-                                                        userIndicatorController: parameters.userIndicatorController)
+        viewModel = IdentityConfirmationScreenViewModel(userSession: parameters.userSession, userSettings: parameters.userSettings)
     }
     
     func start() {
@@ -52,10 +49,10 @@ final class IdentityConfirmationScreenCoordinator: CoordinatorProtocol {
                 actionsSubject.send(.recoveryKey)
             case .skip:
                 actionsSubject.send(.skip)
-            case .reset:
-                actionsSubject.send(.reset)
-            case .logoutConfirmed:
-                actionsSubject.send(.logoutConfirmed)
+            case .reset(let hasConfirmationOptions):
+                actionsSubject.send(.reset(hasConfirmationOptions: hasConfirmationOptions))
+            case .logoutWithoutConfirmation:
+                actionsSubject.send(.logoutWithoutConfirmation)
             }
         }
         .store(in: &cancellables)

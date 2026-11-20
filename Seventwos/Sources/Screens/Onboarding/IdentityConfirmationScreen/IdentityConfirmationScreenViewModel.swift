@@ -13,18 +13,17 @@ typealias IdentityConfirmationScreenViewModelType = StateStoreViewModelV2<Identi
 
 class IdentityConfirmationScreenViewModel: IdentityConfirmationScreenViewModelType, IdentityConfirmationScreenViewModelProtocol {
     private let userSession: UserSessionProtocol
-    private let userIndicatorController: UserIndicatorControllerProtocol
     
     private let actionsSubject: PassthroughSubject<IdentityConfirmationScreenViewModelAction, Never> = .init()
     var actionsPublisher: AnyPublisher<IdentityConfirmationScreenViewModelAction, Never> {
         actionsSubject.eraseToAnyPublisher()
     }
     
-    init(userSession: UserSessionProtocol, appSettings: AppSettings, userIndicatorController: UserIndicatorControllerProtocol) {
+    init(userSession: UserSessionProtocol, userSettings: UserSettings) {
         self.userSession = userSession
-        self.userIndicatorController = userIndicatorController
         
-        super.init(initialViewState: IdentityConfirmationScreenViewState(learnMoreURL: appSettings.deviceVerificationURL))
+        super.init(initialViewState: IdentityConfirmationScreenViewState(isUnverified: userSession.sessionSecurityStatePublisher.value.verificationState == .unverified,
+                                                                         learnMoreURL: userSettings.app.deviceVerificationURL))
         
         Task { [weak self] in
             for await state in userSession.sessionSecurityStatePublisher.values {
@@ -47,20 +46,17 @@ class IdentityConfirmationScreenViewModel: IdentityConfirmationScreenViewModelTy
         case .skip:
             actionsSubject.send(.skip)
         case .reset:
-            actionsSubject.send(.reset)
+            actionsSubject.send(.reset(hasConfirmationOptions: state.availableActions?.isEmpty == false))
         case .logout:
-            confirmLogout()
+            // There's nothing to lose before the identity is confirmed, so there's no need to ask for confirmation.
+            actionsSubject.send(.logoutWithoutConfirmation)
         }
     }
     
     // MARK: - Private
     
     private func updateWithSessionSecurityState(_ sessionSecurityState: SessionSecurityState) async {
-        if sessionSecurityState.verificationState == .unknown {
-            showLoadingIndicator()
-        } else {
-            hideLoadingIndicator()
-        }
+        state.isUnverified = sessionSecurityState.verificationState == .unverified
         
         // Note: Until the actions are unset, there's a disabled action button with a loading spinner.
         
@@ -86,31 +82,5 @@ class IdentityConfirmationScreenViewModel: IdentityConfirmationScreenViewModelTy
         }
         
         state.availableActions = availableActions
-    }
-    
-    private func confirmLogout() {
-        // We need to show the confirmation within this flow as letting the UserSession flow do it results in the
-        // onboarding flow's modal being dismissed (by SwiftUI, not us). However we don't need any of the additional
-        // checks made in the UserSession flow as the user's account isn't verified so there's no much they can do unless
-        // they complete verification.
-        state.bindings.alertInfo = .init(id: .logout,
-                                         title: L10n.screenSignoutConfirmationDialogTitle,
-                                         message: L10n.screenSignoutConfirmationDialogContent,
-                                         primaryButton: .init(title: L10n.screenSignoutConfirmationDialogSubmit, role: .destructive) { [weak self] in
-                                             self?.actionsSubject.send(.logoutConfirmed)
-                                         })
-    }
-    
-    private static let loadingIndicatorIdentifier = "\(IdentityConfirmationScreenViewModel.self)-Loading"
-    
-    private func showLoadingIndicator() {
-        userIndicatorController.submitIndicator(UserIndicator(id: Self.loadingIndicatorIdentifier,
-                                                              type: .modal,
-                                                              title: L10n.commonLoading,
-                                                              persistent: true))
-    }
-    
-    private func hideLoadingIndicator() {
-        userIndicatorController.retractIndicatorWithId(Self.loadingIndicatorIdentifier)
     }
 }

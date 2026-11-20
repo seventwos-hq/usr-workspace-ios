@@ -1,6 +1,5 @@
 //
-// Copyright 2025 Element Creations Ltd.
-// Copyright 2022-2025 New Vector Ltd.
+// Copyright 2026 Element Creations Ltd.
 //
 // SPDX-License-Identifier: AGPL-3.0-only
 // Please see LICENSE files in the repository root for full details.
@@ -9,28 +8,35 @@
 import Combine
 import SwiftUI
 
-typealias AdvancedSettingsScreenViewModelType = StateStoreViewModelV2<AdvancedSettingsScreenViewState, AdvancedSettingsScreenViewAction>
+typealias ModerationAndSafetySettingsScreenViewModelType = StateStoreViewModelV2<ModerationAndSafetySettingsScreenViewState, ModerationAndSafetySettingsScreenViewAction>
 
-class AdvancedSettingsScreenViewModel: AdvancedSettingsScreenViewModelType, AdvancedSettingsScreenViewModelProtocol {
-    private let analytics: AnalyticsServiceProtocol
+class ModerationAndSafetySettingsScreenViewModel: ModerationAndSafetySettingsScreenViewModelType, ModerationAndSafetySettingsScreenViewModelProtocol {
     private let clientProxy: ClientProxyProtocol
     private let userIndicatorController: UserIndicatorControllerProtocol
     
     private var timelineMediaVisibilityTask: Task<Void, Never>?
     private var hideInviteAvatarsTask: Task<Void, Never>?
     
-    init(advancedSettings: AdvancedSettingsProtocol,
-         analytics: AnalyticsServiceProtocol,
-         clientProxy: ClientProxyProtocol,
+    private var actionsSubject: PassthroughSubject<ModerationAndSafetySettingsScreenViewModelAction, Never> = .init()
+    var actionsPublisher: AnyPublisher<ModerationAndSafetySettingsScreenViewModelAction, Never> {
+        actionsSubject.eraseToAnyPublisher()
+    }
+    
+    init(userSession: UserSessionProtocol,
          userIndicatorController: UserIndicatorControllerProtocol) {
-        self.analytics = analytics
-        self.clientProxy = clientProxy
+        clientProxy = userSession.clientProxy
         self.userIndicatorController = userIndicatorController
         
-        let state = AdvancedSettingsScreenViewState(timelineMediaVisibility: clientProxy.timelineMediaVisibilityPublisher.value,
-                                                    hideInviteAvatars: clientProxy.hideInviteAvatarsPublisher.value,
-                                                    bindings: .init(advancedSettings: advancedSettings))
+        let state = ModerationAndSafetySettingsScreenViewState(hideInviteAvatars: clientProxy.hideInviteAvatarsPublisher.value,
+                                                               timelineMediaVisibility: clientProxy.timelineMediaVisibilityPublisher.value,
+                                                               bindings: .init(userSettings: userSession.userSettings))
         super.init(initialViewState: state)
+        
+        clientProxy.hideInviteAvatarsPublisher
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .weakAssign(to: \.state.hideInviteAvatars, on: self)
+            .store(in: &cancellables)
         
         clientProxy.timelineMediaVisibilityPublisher
             .removeDuplicates()
@@ -38,22 +44,21 @@ class AdvancedSettingsScreenViewModel: AdvancedSettingsScreenViewModelType, Adva
             .weakAssign(to: \.state.timelineMediaVisibility, on: self)
             .store(in: &cancellables)
         
-        clientProxy.hideInviteAvatarsPublisher
-            .removeDuplicates()
+        clientProxy.ignoredUsersPublisher
             .receive(on: DispatchQueue.main)
-            .weakAssign(to: \.state.hideInviteAvatars, on: self)
+            .map { $0?.isEmpty == false }
+            .weakAssign(to: \.state.showBlockedUsers, on: self)
             .store(in: &cancellables)
     }
     
-    override func process(viewAction: AdvancedSettingsScreenViewAction) {
+    override func process(viewAction: ModerationAndSafetySettingsScreenViewAction) {
         switch viewAction {
-        case .optimizeMediaUploadsChanged:
-            // Note: Using a view action here as sinking the AppSettings publisher tracks the initial value.
-            analytics.trackInteraction(name: state.bindings.optimizeMediaUploads ? .MobileSettingsOptimizeMediaUploadsEnabled : .MobileSettingsOptimizeMediaUploadsDisabled)
         case let .updateHideInviteAvatars(value):
             hideInviteAvatarsTask = Task { [weak self] in await self?.updateHideInviteAvatars(value) }
         case let .updateTimelineMediaVisibility(value):
             timelineMediaVisibilityTask = Task { [weak self] in await self?.updateTimelineMediaVisibility(value) }
+        case .blockedUsers:
+            actionsSubject.send(.blockedUsers)
         }
     }
     

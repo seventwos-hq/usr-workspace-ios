@@ -38,8 +38,9 @@ extension TimelineProxyMock {
             timelineItemProvider = AutoUpdatingTimelineItemProviderMock()
         } else {
             let provider = TimelineItemProviderMock()
+            provider.kind = .live
+            provider.updatePublisher = Empty().eraseToAnyPublisher()
             provider.paginationState = .init(backward: configuration.timelineStartReached ? .endReached : .idle, forward: .endReached)
-            provider.membershipChangePublisher = PassthroughSubject().eraseToAnyPublisher()
             timelineItemProvider = provider
         }
     }

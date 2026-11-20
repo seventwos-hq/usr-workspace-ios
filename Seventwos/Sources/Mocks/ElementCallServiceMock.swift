@@ -9,15 +9,31 @@
 import Combine
 import Foundation
 
-struct ElementCallServiceMockConfiguration {
-    var ongoingCallRoomID: String?
-}
-
 extension ElementCallServiceMock {
-    convenience init(_ configuration: ElementCallServiceMockConfiguration) {
+    struct Configuration {
+        var userID = "@alice:matrix.org"
+        var ongoingCallRoomID: String?
+    }
+    
+    convenience init(_ configuration: Configuration) {
         self.init()
         
-        actions = PassthroughSubject().eraseToAnyPublisher()
-        ongoingCallRoomIDPublisher = .init(.init(configuration.ongoingCallRoomID))
+        userID = configuration.userID
+        actionsPublisher = PassthroughSubject().eraseToAnyPublisher()
+        nativeCallEventsPublisher = PassthroughSubject().eraseToAnyPublisher()
+        
+        let ongoingCallRoomIDSubject = CurrentValueSubject<String?, Never>(configuration.ongoingCallRoomID)
+        ongoingCallRoomIDPublisher = ongoingCallRoomIDSubject.asCurrentValuePublisher()
+        ongoingCallChangedRoomIDClosure = { roomID in
+            ongoingCallRoomIDSubject.send(roomID)
+        }
+        
+        handleNativeCallRequestRoomProxyIsVoiceCallAnsweredFromCallKitReturnValue = false
+    }
+}
+
+extension ElementCallServiceAction.RoomCall {
+    static func mock(roomID: String = "!room:example.com", isVoiceCall: Bool = false) -> Self {
+        .init(roomProxy: JoinedRoomProxyMock(.init(id: roomID)), isVoiceCall: isVoiceCall)
     }
 }

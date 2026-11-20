@@ -13,7 +13,6 @@ struct RoomMemberDetailsScreenCoordinatorParameters {
     let userID: String
     let roomProxy: JoinedRoomProxyProtocol
     let userSession: UserSessionProtocol
-    let appHooks: AppHooks
     let analytics: AnalyticsServiceProtocol
     let userIndicatorController: UserIndicatorControllerProtocol
 }
@@ -21,7 +20,6 @@ struct RoomMemberDetailsScreenCoordinatorParameters {
 enum RoomMemberDetailsScreenCoordinatorAction {
     case openUserProfile
     case openDirectChat(roomID: String)
-    case startCall(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
     case verifyUser(userID: String)
 }
 
@@ -39,7 +37,6 @@ final class RoomMemberDetailsScreenCoordinator: CoordinatorProtocol {
         viewModel = RoomMemberDetailsScreenViewModel(userID: parameters.userID,
                                                      roomProxy: parameters.roomProxy,
                                                      userSession: parameters.userSession,
-                                                     appHooks: parameters.appHooks,
                                                      analytics: parameters.analytics,
                                                      userIndicatorController: parameters.userIndicatorController)
     }
@@ -53,8 +50,6 @@ final class RoomMemberDetailsScreenCoordinator: CoordinatorProtocol {
                 actionsSubject.send(.openUserProfile)
             case .openDirectChat(let roomID):
                 actionsSubject.send(.openDirectChat(roomID: roomID))
-            case .startCall(let roomProxy, let isVoiceCall):
-                actionsSubject.send(.startCall(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
             case .verifyUser(let userID):
                 actionsSubject.send(.verifyUser(userID: userID))
             }

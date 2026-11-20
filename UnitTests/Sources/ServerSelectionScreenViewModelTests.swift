@@ -6,8 +6,8 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-import MatrixRustSDKMocks
 @testable import Seventwos
+import MatrixRustSDKMocks
 import SwiftUI
 import Testing
 
@@ -29,7 +29,7 @@ struct ServerSelectionScreenViewModelTests {
     @Test
     mutating func selectForLogin() async throws {
         // Given a view model for login.
-        try setup(authenticationFlow: .login, accountProviders: [.generic("matrix.org")])
+        try setup(authenticationFlow: .login)
         #expect(service.homeserver.value.loginMode == .unknown)
         #expect(clientFactory.makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCount == 0)
         
@@ -210,6 +210,36 @@ struct ServerSelectionScreenViewModelTests {
         #expect(clientFactory.makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCount == 2)
     }
     
+    @Test
+    mutating func userInputConfirmTwiceContinuesOnce() async throws {
+        // Given a view model for login with a server that doesn't support OAuth.
+        try setup(authenticationFlow: .login)
+        context.serverNameOrBaseURL = Self.passwordOnlyServer
+        
+        // When confirming a second time before the first confirmation has finished (e.g. Continue then keyboard Done).
+        var continueCount = 0
+        let deferredFailure = deferFailure(viewModel.actions, timeout: .milliseconds(300), message: "The flow should only continue once.") { action in
+            guard action.isContinueWithPassword else { return false }
+            continueCount += 1
+            return continueCount > 1
+        }
+        context.send(viewAction: .confirm)
+        context.send(viewAction: .confirm)
+        try await deferredFailure.fulfill()
+        
+        // Then the server should only be configured once.
+        #expect(continueCount == 1)
+        #expect(clientFactory.makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCount == 1)
+        
+        // And when confirming again once finished (e.g. after navigating back from the login screen).
+        let deferred = deferFulfillment(viewModel.actions) { $0.isContinueWithPassword }
+        context.send(viewAction: .confirm)
+        try await deferred.fulfill()
+        
+        // Then the flow should continue again.
+        #expect(clientFactory.makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCount == 2)
+    }
+    
     // MARK: - Picker mode
     
     @Test
@@ -281,7 +311,7 @@ struct ServerSelectionScreenViewModelTests {
     @Test
     mutating func autocompleteFromAccountProviders() async throws {
         // Given a view model with no previous server history, falling back to the default account providers.
-        try setup(authenticationFlow: .login, accountProviders: [.generic("matrix.org")])
+        try setup(authenticationFlow: .login)
         #expect(appSettings.previousServers.isEmpty)
         context.serverNameOrBaseURL = ""
         let textField = UITextField()
@@ -355,45 +385,21 @@ struct ServerSelectionScreenViewModelTests {
     // MARK: - Helpers
     
     private mutating func setup(authenticationFlow: AuthenticationFlow,
-                                mode: ServerSelectionScreenMode = .userInput,
-                                accountProviders: [AccountProvider]? = nil) throws {
+                                mode: ServerSelectionScreenMode = .userInput) throws {
         appSettings = AppSettings.volatile()
-        
-        if let accountProviders {
-            appSettings.override(accountProviders: accountProviders,
-                                 allowOtherAccountProviders: appSettings.allowOtherAccountProviders,
-                                 hideBrandChrome: appSettings.hideBrandChrome,
-                                 pushGatewayBaseURL: appSettings.pushGatewayBaseURL,
-                                 oAuthRedirectURL: appSettings.oAuthRedirectURL,
-                                 oAuthClientURIPath: appSettings.oAuthClientURIPath,
-                                 websiteURL: appSettings.websiteURL,
-                                 logoURL: appSettings.logoURL,
-                                 copyrightURL: appSettings.copyrightURL,
-                                 acceptableUseURL: appSettings.acceptableUseURL,
-                                 privacyURL: appSettings.privacyURL,
-                                 encryptionURL: appSettings.encryptionURL,
-                                 deviceVerificationURL: appSettings.deviceVerificationURL,
-                                 chatBackupDetailsURL: appSettings.chatBackupDetailsURL,
-                                 identityPinningViolationDetailsURL: appSettings.identityPinningViolationDetailsURL,
-                                 historySharingDetailsURL: appSettings.historySharingDetailsURL,
-                                 elementWebHosts: appSettings.elementWebHosts,
-                                 accountProvisioningHost: appSettings.accountProvisioningHost,
-                                 bugReportApplicationID: appSettings.bugReportApplicationID,
-                                 analyticsTermsURL: appSettings.analyticsTermsURL,
-                                 mapTilerConfiguration: appSettings.mapTilerConfiguration.publisher.value)
-        }
         
         let factoryConfiguration = ClientFactoryMock.Configuration()
         // matrix.org: OAuth. example.com: password only. server.net: no login. secure.gov: OAuth + Element Pro required.
         client = factoryConfiguration.homeserverClients["matrix.org"]
         clientFactory = ClientFactoryMock(factoryConfiguration)
         
-        service = AuthenticationService(userSessionStore: UserSessionStoreMock(.init()),
+        service = AuthenticationService(userSessionManager: UserSessionManagerMock(.init()),
                                         encryptionKeyProvider: EncryptionKeyProvider(),
                                         classicAppManager: nil,
                                         clientFactory: clientFactory,
                                         appSettings: appSettings,
-                                        appHooks: AppHooks())
+                                        appHooks: AppHooks(),
+                                        targetContext: .mock)
         
         viewModel = ServerSelectionScreenViewModel(authenticationService: service,
                                                    mode: mode,

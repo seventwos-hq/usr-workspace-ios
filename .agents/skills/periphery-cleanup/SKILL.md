@@ -80,7 +80,7 @@ Careful with same-name members: one mock file often configure SEVERAL protocols 
 
 ## Verify — on the PLAIN project
 
-Restore the plain configuration BEFORE running tests — snapshots are recorded against the plain Seventwos Workspace configuration; Pro branding fail ~8 preview tests falsely:
+Restore the plain configuration BEFORE running tests — snapshots are recorded against plain Element X; Pro branding fail ~8 preview tests falsely:
 
 ```bash
 git restore project.yml Seventwos.xcodeproj/project.pbxproj "Seventwos/Resources/AppIcon.icon/Assets/AppIcon.png"

@@ -21,22 +21,27 @@ class SecureBackupLogoutConfirmationScreenViewModel: SecureBackupLogoutConfirmat
     private var keyUploadWaitingTask: Task<Void, Never>?
     @CancellableTask
     private var keyUploadStalledTask: Task<Void, Error>?
+    @CancellableTask
+    private var recoveryKeyTask: Task<Void, Never>?
     
     private var actionsSubject: PassthroughSubject<SecureBackupLogoutConfirmationScreenViewModelAction, Never> = .init()
     var actions: AnyPublisher<SecureBackupLogoutConfirmationScreenViewModelAction, Never> {
         actionsSubject.eraseToAnyPublisher()
     }
     
-    init(secureBackupController: SecureBackupControllerProtocol, homeserverReachabilityPublisher: CurrentValuePublisher<HomeserverReachability, Never>) {
+    init(secureBackupController: SecureBackupControllerProtocol,
+         homeserverReachabilityPublisher: CurrentValuePublisher<HomeserverReachability, Never>,
+         learnMoreURL: URL,
+         mode: SecureBackupLogoutConfirmationScreenViewMode = .saveRecoveryKey) {
         self.secureBackupController = secureBackupController
         self.homeserverReachabilityPublisher = homeserverReachabilityPublisher
         
-        super.init(initialViewState: .init(mode: .saveRecoveryKey))
+        super.init(initialViewState: .init(learnMoreURL: learnMoreURL, mode: mode))
         
         backupUploadStateSubject.combineLatest(homeserverReachabilityPublisher)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] backupState, reachability in
-                guard let self, state.mode != .saveRecoveryKey else { return }
+                guard let self, !state.mode.isInitial else { return }
                 updateMode(backupState: backupState, reachability: reachability)
             }
             .store(in: &cancellables)
@@ -51,14 +56,30 @@ class SecureBackupLogoutConfirmationScreenViewModel: SecureBackupLogoutConfirmat
         case .cancel:
             keyUploadWaitingTask = nil
             actionsSubject.send(.cancel)
-        case .settings:
-            actionsSubject.send(.settings)
+        case .checkRecoveryKey:
+            requestRecoveryKey { .checkRecoveryKey($0) }
+        case .generateRecoveryKey:
+            requestRecoveryKey { .generateRecoveryKey($0) }
         case .logout:
             attemptLogout()
         }
     }
     
     // MARK: - Private
+    
+    /// Asks for the user to be taken through a recovery key screen, and carries on removing the device once they have finished it.
+    private func requestRecoveryKey(action: (SecureBackupLogoutConfirmationScreenRecoveryKeyContinuation) -> SecureBackupLogoutConfirmationScreenViewModelAction) {
+        let (stream, continuation) = AsyncStream<Void>.makeStream()
+        actionsSubject.send(action(continuation))
+        
+        recoveryKeyTask = Task { [weak self] in
+            for await _ in stream {
+                // The keys now have to be backed up before the device can go.
+                self?.state.mode = .saveRecoveryKey
+                self?.attemptLogout()
+            }
+        }
+    }
     
     private func attemptLogout() {
         if case .saveRecoveryKey = state.mode {

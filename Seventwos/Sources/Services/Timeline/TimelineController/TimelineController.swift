@@ -14,10 +14,11 @@ import UIKit
 
 class TimelineController: TimelineControllerProtocol {
     private let roomProxy: JoinedRoomProxyProtocol
+    private let liveTimeline: TimelineProxyProtocol
     private let liveTimelineItemProvider: TimelineItemProviderProtocol
     private let timelineItemFactory: RoomTimelineItemFactoryProtocol
     private let mediaProvider: MediaProviderProtocol
-    private let appSettings: AppSettings
+    private let userSettings: UserSettings
     
     let callbacks = PassthroughSubject<TimelineControllerCallback, Never>()
     
@@ -51,19 +52,21 @@ class TimelineController: TimelineControllerProtocol {
          initialFocussedEventID: String?,
          timelineItemFactory: RoomTimelineItemFactoryProtocol,
          mediaProvider: MediaProviderProtocol,
-         appSettings: AppSettings,
+         userSettings: UserSettings,
          allowedGalleryItemTypes: [TimelineAllowedGalleryItemType]? = nil) {
         self.allowedGalleryItemTypes = allowedGalleryItemTypes
         self.roomProxy = roomProxy
+        liveTimeline = timelineProxy
         liveTimelineItemProvider = timelineProxy.timelineItemProvider
         self.timelineItemFactory = timelineItemFactory
         self.mediaProvider = mediaProvider
-        self.appSettings = appSettings
+        self.userSettings = userSettings
         
         activeTimeline = timelineProxy
         activeTimelineItemProvider = liveTimelineItemProvider
         
-        guard let initialFocussedEventID else {
+        // No need for a detached timeline when the live one has already loaded the event.
+        guard let initialFocussedEventID, !liveTimelineItemProvider.containsEvent(initialFocussedEventID) else {
             configureActiveTimelineItemProvider()
             return
         }
@@ -98,7 +101,7 @@ class TimelineController: TimelineControllerProtocol {
     }
     
     func focusLive() {
-        activeTimeline = roomProxy.timeline
+        activeTimeline = liveTimeline
         activeTimelineItemProvider = liveTimelineItemProvider
     }
     
@@ -127,7 +130,7 @@ class TimelineController: TimelineControllerProtocol {
     }
     
     func sendReadReceipt(for itemID: TimelineItemIdentifier) async {
-        let receiptType: MatrixRustSDK.ReceiptType = appSettings.sharePresence ? .read : .readPrivate
+        let receiptType: MatrixRustSDK.ReceiptType = userSettings.account.sharePresence ? .read : .readPrivate
         
         guard let eventID = itemID.eventID else {
             return
@@ -288,6 +291,53 @@ class TimelineController: TimelineControllerProtocol {
         return nil
     }
     
+    func pendingSendTarget(for itemID: TimelineItemIdentifier) -> SendTarget? {
+        for timelineItemProxy in activeTimelineItemProvider.itemProxies {
+            switch timelineItemProxy {
+            case .event(let item):
+                if item.id == itemID {
+                    return item.pendingSend?.target
+                }
+            default:
+                continue
+            }
+        }
+        
+        return nil
+    }
+    
+    func retrySend(_ itemID: TimelineItemIdentifier, target: SendTarget) async {
+        guard let eventOrTransactionID = itemID.eventOrTransactionID else {
+            MXLog.error("Cannot retry sending on \(itemID).")
+            return
+        }
+        
+        MXLog.info("Retry \(target) send in \(roomID)")
+        
+        switch await activeTimeline.retrySend(eventOrTransactionID, target: target) {
+        case .success(let hadPendingSend):
+            MXLog.info("Finished retrying send, had one pending: \(hadPendingSend)")
+        case .failure(let error):
+            MXLog.error("Failed retrying send with error: \(error)")
+        }
+    }
+    
+    func abortSend(_ itemID: TimelineItemIdentifier, target: SendTarget) async {
+        guard let eventOrTransactionID = itemID.eventOrTransactionID else {
+            MXLog.error("Cannot abort sending on \(itemID).")
+            return
+        }
+        
+        MXLog.info("Abort \(target) send in \(roomID)")
+        
+        switch await activeTimeline.abortSend(eventOrTransactionID, target: target) {
+        case .success(let hadPendingSend):
+            MXLog.info("Finished aborting send, had one pending: \(hadPendingSend)")
+        case .failure(let error):
+            MXLog.error("Failed aborting send with error: \(error)")
+        }
+    }
+    
     // MARK: - Sending
     
     func sendMessage(_ message: String,
@@ -394,10 +444,13 @@ class TimelineController: TimelineControllerProtocol {
     func sendVoiceMessage(url: URL,
                           audioInfo: MatrixRustSDK.AudioInfo,
                           waveform: [Float],
+                          inReplyToEventID: String?,
                           requestHandle: @MainActor (SendAttachmentJoinHandleProtocol) -> Void) async -> Result<Void, TimelineControllerError> {
         switch await activeTimeline.sendVoiceMessage(url: url,
                                                      audioInfo: audioInfo,
-                                                     waveform: waveform, requestHandle: requestHandle).mapError(TimelineControllerError.timelineProxyError) {
+                                                     waveform: waveform,
+                                                     inReplyToEventID: inReplyToEventID,
+                                                     requestHandle: requestHandle).mapError(TimelineControllerError.timelineProxyError) {
         case .success:
             callbacks.send(.messageSentOrEdited)
             return .success(())
@@ -454,7 +507,7 @@ class TimelineController: TimelineControllerProtocol {
         
         // Inform the world that the initial items are loading from the store
         paginationState = TimelinePaginationState(backward: .paginating, forward: .paginating)
-        callbacks.send(.isLive(activeTimelineItemProvider.kind == .live))
+        callbacks.send(.isLive(activeTimelineItemProvider.kind == liveTimelineItemProvider.kind))
         
         let contentSizeChangePublisher = NotificationCenter.default.publisher(for: UIContentSizeCategory.didChangeNotification)
         let timelineUpdates = activeTimelineItemProvider.updatePublisher.merge(with: contentSizeChangePublisher.compactMap { [weak self] _ in
@@ -517,11 +570,11 @@ class TimelineController: TimelineControllerProtocol {
             return newTimelineItems
         }.value
         
-        // Check if we need to add anything to the top of the timeline.
+        // Kept while idle too, so the indicator doesn't flash between pages until the start of the timeline.
         switch paginationState.backward {
-        case .paginating:
+        case .idle, .paginating:
             newTimelineItems.insert(PaginationIndicatorRoomTimelineItem(position: .start), at: 0)
-        case .idle, .endReached:
+        case .endReached:
             break
         }
         
@@ -716,5 +769,14 @@ private nonisolated extension TimelineItemProxy {
         }
         
         return false
+    }
+}
+
+private extension TimelineItemProviderProtocol {
+    func containsEvent(_ eventID: String) -> Bool {
+        itemProxies.contains { item in
+            guard case let .event(eventItem) = item else { return false }
+            return eventItem.id.eventID == eventID
+        }
     }
 }

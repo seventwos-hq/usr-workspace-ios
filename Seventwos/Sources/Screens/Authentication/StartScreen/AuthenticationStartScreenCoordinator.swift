@@ -12,7 +12,7 @@ import SwiftUI
 struct AuthenticationStartScreenParameters {
     let authenticationService: AuthenticationServiceProtocol
     let provisioningParameters: AccountProvisioningParameters?
-    let isBugReportServiceEnabled: Bool
+    let isAddingAccount: Bool
     let appMediator: AppMediatorProtocol
     let appSettings: AppSettings
     let mediaProvider: MediaProviderProtocol?
@@ -43,7 +43,7 @@ final class AuthenticationStartScreenCoordinator: CoordinatorProtocol {
     init(parameters: AuthenticationStartScreenParameters) {
         viewModel = AuthenticationStartScreenViewModel(authenticationService: parameters.authenticationService,
                                                        provisioningParameters: parameters.provisioningParameters,
-                                                       isBugReportServiceEnabled: parameters.isBugReportServiceEnabled,
+                                                       isAddingAccount: parameters.isAddingAccount,
                                                        appMediator: parameters.appMediator,
                                                        appSettings: parameters.appSettings,
                                                        mediaProvider: parameters.mediaProvider,
