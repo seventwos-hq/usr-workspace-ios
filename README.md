@@ -58,7 +58,7 @@ Because `Seventwos/Sources` contains both inherited Element X Swift files and Se
 - **Design system & shared UI**:
   - `compound-ios/` and `Components/` — UI tokens (`Color.compound.*`, `Font.compound.*`, `CompoundIcon`) and reusable components.
 - **Upstream sync policy & invariants**:
-  - `.seventwos/` and `ci_scripts/validate_upstream_policy.py` — record any new Seventwos behavioral invariant in `.seventwos/upstream-invariants.json` (and any new path/target mapping in `.seventwos/upstream-path-map.json`) so CI prevents upstream syncs from overwriting it.
+  - `.seventwos/` and `ci_scripts/validate_upstream_policy.py` — when introducing a new Seventwos behavioral invariant (or path/target mapping), add it to `.seventwos/upstream-invariants.json` (or `.seventwos/upstream-path-map.json`), register its enforcement in `REQUIRED_INVARIANTS` inside `ci_scripts/validate_upstream_policy.py` (with unit tests in `ci_scripts/validate_upstream_policy_test.py`), and run `python3 ci_scripts/validate_upstream_policy.py` locally because `.github/workflows/upstream-assessment.yml` only triggers policy validation when policy-scoped files change.
 
 ## Provenance and licence
 

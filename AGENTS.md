@@ -21,9 +21,9 @@ Swift / SwiftUI, Matrix Rust SDK (UniFFI bindings via SwiftPM), XcodeGen (`proje
 - **Identity, endpoints, and telemetry invariants (`.seventwos/upstream-invariants.json`)**:
   - Product display names and bundle IDs (`org.seventwos.workspace`) live in `app.yml`.
   - Homeserver and service defaults (`workspace.seventwos.org`, never `element.io` or `vector.im`) live in `Seventwos/Sources/Application/Settings/AppSettings.swift`.
-  - Inherited Sentry/PostHog/rageshake endpoints stay `nil` in `Components/Secrets/Secrets.swift`, enforced by `ci_scripts/validate_release_readiness.sh`.
+  - Inherited Sentry/PostHog/rageshake endpoints stay `nil` in `Components/Secrets/Secrets.swift` (enforced by the `inherited-telemetry-disabled` invariant in `ci_scripts/validate_upstream_policy.py`, while `ci_scripts/validate_release_readiness.sh` rejects inherited upstream domains and placeholder release values).
 - **Register new divergence in `.seventwos/`**:
-  - When introducing a new Seventwos behavioral requirement or path mapping that must survive upstream syncs, add it to `.seventwos/upstream-invariants.json` or `.seventwos/upstream-path-map.json` and validate with `python3 ci_scripts/validate_upstream_policy.py`.
+  - When introducing a new Seventwos behavioral requirement or path mapping that must survive upstream syncs, add it to `.seventwos/upstream-invariants.json` or `.seventwos/upstream-path-map.json`, add the corresponding check to `REQUIRED_INVARIANTS` in `ci_scripts/validate_upstream_policy.py` (and `ci_scripts/validate_upstream_policy_test.py`), and run `python3 ci_scripts/validate_upstream_policy.py` (since `upstream-assessment.yml` only runs validation when policy-scoped paths change).
 
 ## Setup / Build / Test / Lint
 - Env setup (CI): `source ci_scripts/ci_common.sh && setup_github_actions_environment` (unverified)
