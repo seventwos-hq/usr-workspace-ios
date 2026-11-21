@@ -1723,7 +1723,7 @@ internal nonisolated enum L10n {
   internal static var screenChangeServerSubtitle: String { return L10n.tr("Localizable", "screen_change_server_subtitle") }
   /// If your account is provided by your company or a community, then change the account provider (example: companyname.com).
   internal static var screenChangeServerTextfieldFooterLogin: String { return L10n.tr("Localizable", "screen_change_server_textfield_footer_login") }
-  /// Create an account on workspace.seventwos.org for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).
+  /// Create an account on workspace.seventwos.com for free. If you want to create an account with a different provider, then change it accordingly (example: communityname.org).
   internal static var screenChangeServerTextfieldFooterRegister: String { return L10n.tr("Localizable", "screen_change_server_textfield_footer_register") }
   /// Account provider
   internal static var screenChangeServerTextfieldHeader: String { return L10n.tr("Localizable", "screen_change_server_textfield_header") }

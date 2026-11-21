@@ -20,14 +20,14 @@ for file in "$app_config" "$app_settings" "$secrets" "$target_config" "$entitlem
     [ -f "$file" ] || fail "missing required file: $file"
 done
 
-grep -Fq "BASE_BUNDLE_IDENTIFIER: org.seventwos.workspace" "$app_config" ||
-    fail "BASE_BUNDLE_IDENTIFIER must be org.seventwos.workspace."
+grep -Fq "BASE_BUNDLE_IDENTIFIER: com.seventwos.workspace" "$app_config" ||
+    fail "BASE_BUNDLE_IDENTIFIER must be com.seventwos.workspace."
 
-grep -Fq "APP_GROUP_IDENTIFIER: group.org.seventwos.workspace" "$app_config" ||
-    fail "APP_GROUP_IDENTIFIER must be group.org.seventwos.workspace."
+grep -Fq "APP_GROUP_IDENTIFIER: group.com.seventwos.workspace" "$app_config" ||
+    fail "APP_GROUP_IDENTIFIER must be group.com.seventwos.workspace."
 
-grep -Fq "workspace.seventwos.org" "$app_settings" ||
-    fail "workspace.seventwos.org must be configured as the production application domain."
+grep -Fq "workspace.seventwos.com" "$app_settings" ||
+    fail "workspace.seventwos.com must be configured as the production application domain."
 
 if grep -Eq 'DEVELOPMENT_TEAM:[[:space:]]*""' "$app_config"; then
     fail "configure the Seventwos Apple Development Team before release."

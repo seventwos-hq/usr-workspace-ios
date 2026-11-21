@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Buat akun";
 "screen_change_server_subtitle" = "Apa alamat server Anda?";
 "screen_change_server_textfield_footer_login" = "Jika akun Anda disediakan oleh perusahaan atau komunitas Anda, maka ubah penyedia akun (contoh: companyname.com).";
-"screen_change_server_textfield_footer_register" = "Buat akun di workspace.seventwos.org secara gratis. Jika anda ingin membuat akun dengan penyedia lain, ubah sesuai kebutuhan (contoh: communityname.org).";
+"screen_change_server_textfield_footer_register" = "Buat akun di workspace.seventwos.com secara gratis. Jika anda ingin membuat akun dengan penyedia lain, ubah sesuai kebutuhan (contoh: communityname.org).";
 "screen_change_server_textfield_header" = "Penyedia akun";
 "screen_change_server_textfield_placeholder" = "contoh.com";
 "screen_change_server_title" = "Pilih server Anda";

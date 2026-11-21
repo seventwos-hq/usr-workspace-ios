@@ -6,8 +6,8 @@
 	<string>development</string>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
-		<string>applinks:workspace.seventwos.org</string>
-		<string>webcredentials:workspace.seventwos.org</string>
+		<string>applinks:workspace.seventwos.com</string>
+		<string>webcredentials:workspace.seventwos.com</string>
 	</array>
 	<key>com.apple.developer.usernotifications.communication</key>
 	<true/>

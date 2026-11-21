@@ -276,7 +276,7 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
             }
             .store(in: &cancellables)
         
-        let reachabilityNotificationID = "org.seventwos.workspace.reachability.notification"
+        let reachabilityNotificationID = "com.seventwos.workspace.reachability.notification"
         userSession.clientProxy.homeserverReachabilityPublisher.removeDuplicates()
             .combineLatest(flowParameters.appMediator.networkMonitor.reachabilityPublisher.removeDuplicates())
             .receive(on: DispatchQueue.main)
