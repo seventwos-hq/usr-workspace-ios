@@ -10,8 +10,8 @@
           "must_contain": [
             "APP_DISPLAY_NAME: Seventwos Workspace",
             "PRODUCTION_APP_NAME: Seventwos Workspace",
-            "BASE_BUNDLE_IDENTIFIER: org.seventwos.workspace",
-            "APP_GROUP_IDENTIFIER: group.org.seventwos.workspace"
+            "BASE_BUNDLE_IDENTIFIER: com.seventwos.workspace",
+            "APP_GROUP_IDENTIFIER: group.com.seventwos.workspace"
           ]
         }
       ]
@@ -23,7 +23,7 @@
         {
           "path": "Seventwos/Sources/Application/Settings/AppSettings.swift",
           "must_contain": [
-            "workspace.seventwos.org",
+            "workspace.seventwos.com",
             "example.invalid"
           ],
           "must_not_contain": [

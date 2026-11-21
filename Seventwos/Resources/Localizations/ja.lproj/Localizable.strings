@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "アカウントを作成";
 "screen_change_server_subtitle" = "サーバーのアドレスは何ですか？";
 "screen_change_server_textfield_footer_login" = "アカウントが会社やコミュニティから発行されている場合は、アカウント提供元を変更してください (例: kaisha-mei.com)。";
-"screen_change_server_textfield_footer_register" = "workspace.seventwos.org 上に無料でアカウントを作成できます。異なるアカウント提供元上にアカウントを作成したい場合は、それにならって変更してください (例: dantai-mei.org)。";
+"screen_change_server_textfield_footer_register" = "workspace.seventwos.com 上に無料でアカウントを作成できます。異なるアカウント提供元上にアカウントを作成したい場合は、それにならって変更してください (例: dantai-mei.org)。";
 "screen_change_server_textfield_header" = "アカウント提供元";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "サーバーを選択";

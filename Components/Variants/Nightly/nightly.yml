@@ -1,6 +1,6 @@
 settings:
-  APP_GROUP_IDENTIFIER: group.org.seventwos.workspace.nightly
-  BASE_BUNDLE_IDENTIFIER: org.seventwos.workspace.nightly
+  APP_GROUP_IDENTIFIER: group.com.seventwos.workspace.nightly
+  BASE_BUNDLE_IDENTIFIER: com.seventwos.workspace.nightly
   IS_NIGHTLY_BUILD: true
 
 targets:

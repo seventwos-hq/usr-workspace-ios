@@ -10169,10 +10169,10 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				APP_DISPLAY_NAME = "Seventwos Workspace";
-				APP_GROUP_IDENTIFIER = group.org.seventwos.workspace;
+				APP_GROUP_IDENTIFIER = group.com.seventwos.workspace;
 				APP_NAME = SeventwosWorkspace;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "colors/accent-color";
-				BASE_BUNDLE_IDENTIFIER = org.seventwos.workspace;
+				BASE_BUNDLE_IDENTIFIER = com.seventwos.workspace;
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -10454,10 +10454,10 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				APP_DISPLAY_NAME = "Seventwos Workspace";
-				APP_GROUP_IDENTIFIER = group.org.seventwos.workspace;
+				APP_GROUP_IDENTIFIER = group.com.seventwos.workspace;
 				APP_NAME = SeventwosWorkspace;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "colors/accent-color";
-				BASE_BUNDLE_IDENTIFIER = org.seventwos.workspace;
+				BASE_BUNDLE_IDENTIFIER = com.seventwos.workspace;
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;

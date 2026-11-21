@@ -303,7 +303,7 @@ struct UserSessionFlowCoordinatorTests {
     private var retractReachabilityIndicatorCallsCount: Int {
         userIndicatorController
             .retractIndicatorWithIdReceivedInvocations
-            .filter { $0 == "org.seventwos.workspace.reachability.notification" }
+            .filter { $0 == "com.seventwos.workspace.reachability.notification" }
             .count
     }
 }

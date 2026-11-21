@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Izradi račun";
 "screen_change_server_subtitle" = "Koja je adresa vašeg poslužitelja?";
 "screen_change_server_textfield_footer_login" = "Ako vam je račun omogućila vaša tvrtka ili zajednica, promijenite pružatelja računa (primjer: nazivtvrtke.com).";
-"screen_change_server_textfield_footer_register" = "Besplatno kreirajte račun na workspace.seventwos.org. Ako želite kreirati račun kod drugog pružatelja usluga, promijenite ga u skladu s tim (primjer: communityname.org).";
+"screen_change_server_textfield_footer_register" = "Besplatno kreirajte račun na workspace.seventwos.com. Ako želite kreirati račun kod drugog pružatelja usluga, promijenite ga u skladu s tim (primjer: communityname.org).";
 "screen_change_server_textfield_header" = "Pružatelj usluga računa";
 "screen_change_server_textfield_placeholder" = "primjer.com";
 "screen_change_server_title" = "Odaberite svoj poslužitelj";

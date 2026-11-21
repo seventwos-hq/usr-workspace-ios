@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "建立帳號";
 "screen_change_server_subtitle" = "您的伺服器地址？";
 "screen_change_server_textfield_footer_login" = "若您的帳號是由您的公司或社群提供的，請變更帳號提供者（範例：companyname.com）。";
-"screen_change_server_textfield_footer_register" = "在 workspace.seventwos.org 上建立免費帳號。若您想要使用其他提供者建立帳號，請據此調整（範例：communityname.org）。";
+"screen_change_server_textfield_footer_register" = "在 workspace.seventwos.com 上建立免費帳號。若您想要使用其他提供者建立帳號，請據此調整（範例：communityname.org）。";
 "screen_change_server_textfield_header" = "帳號提供者";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "選擇您的伺服器";

@@ -52,7 +52,7 @@ final nonisolated class NotificationServiceExtension: UNNotificationServiceExten
 }
 
 actor NotificationServiceExtensionActor {
-    static let receivedWhileOfflineNotificationID = "org.seventwos.workspace.receivedWhileOfflineNotification"
+    static let receivedWhileOfflineNotificationID = "com.seventwos.workspace.receivedWhileOfflineNotification"
     
     /// Process-wide target configuration, `Mutex`-protected so it can be read/written from any
     /// thread (in particular, from the actor's synchronous `init` without spawning a Task).

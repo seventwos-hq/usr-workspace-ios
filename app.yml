@@ -1,8 +1,8 @@
 settings:
   APP_DISPLAY_NAME: Seventwos Workspace
   PRODUCTION_APP_NAME: Seventwos Workspace
-  APP_GROUP_IDENTIFIER: group.org.seventwos.workspace
-  BASE_BUNDLE_IDENTIFIER: org.seventwos.workspace
+  APP_GROUP_IDENTIFIER: group.com.seventwos.workspace
+  BASE_BUNDLE_IDENTIFIER: com.seventwos.workspace
   ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: "colors/accent-color"
   # Set this locally or in release automation after an Apple Developer team exists.
   # An empty value keeps simulator development independent of inherited signing credentials.

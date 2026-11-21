@@ -399,7 +399,7 @@ struct CallScreen_Previews: PreviewProvider {
         return CallScreenViewModel(elementCallService: ElementCallServiceMock(.init()),
                                    configuration: .init(roomProxy: roomProxy,
                                                         clientProxy: clientProxy,
-                                                        clientID: "org.seventwos.workspace",
+                                                        clientID: "com.seventwos.workspace",
                                                         elementCallBaseURL: "https://call.element.io",
                                                         elementCallBaseURLOverride: nil,
                                                         voiceOnly: false,

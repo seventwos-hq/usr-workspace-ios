@@ -96,7 +96,7 @@ targets:
           location
         ]
         BGTaskSchedulerPermittedIdentifiers: [
-          org.seventwos.workspace.background.refresh
+          com.seventwos.workspace.background.refresh
         ]
         UTExportedTypeDeclarations:
         - UTTypeConformsTo: [public.text]
@@ -114,9 +114,9 @@ targets:
       properties:
         aps-environment: development
         com.apple.developer.associated-domains:
-        - applinks:workspace.seventwos.org
+        - applinks:workspace.seventwos.com
         # - applinks:localhost?mode=developer # developer mode only works with https (but self-signed is fine).
-        - webcredentials:workspace.seventwos.org
+        - webcredentials:workspace.seventwos.com
         com.apple.developer.usernotifications.communication: true
         com.apple.security.app-sandbox: true
         com.apple.security.application-groups:

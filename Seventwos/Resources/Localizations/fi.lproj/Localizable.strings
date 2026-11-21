@@ -726,7 +726,7 @@
 "screen_change_server_navigation_title_register" = "Luo tili";
 "screen_change_server_subtitle" = "Mikä on palvelimesi osoite?";
 "screen_change_server_textfield_footer_login" = "Jos tilisi on yrityksesi tai yhteisön tarjoama, vaihda palveluntarjoaja (esimerkki: companyname.com).";
-"screen_change_server_textfield_footer_register" = "Luo tili workspace.seventwos.org -palvelimelle ilmaiseksi. Jos haluat luoda tilin eri palveluntarjoajan kautta, muuta sitä vastaavasti (esimerkiksi: communityname.org).";
+"screen_change_server_textfield_footer_register" = "Luo tili workspace.seventwos.com -palvelimelle ilmaiseksi. Jos haluat luoda tilin eri palveluntarjoajan kautta, muuta sitä vastaavasti (esimerkiksi: communityname.org).";
 "screen_change_server_textfield_header" = "Palveluntarjoaja";
 "screen_change_server_textfield_placeholder" = "example.com";
 "screen_change_server_title" = "Valitse palvelimesi";
