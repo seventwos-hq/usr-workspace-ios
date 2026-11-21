@@ -4,8 +4,8 @@
 <dict>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>org.seventwos.workspace.background.refresh</string>
-		<string>org.seventwos.workspace.background.search-backfill</string>
+		<string>com.seventwos.workspace.background.refresh</string>
+		<string>com.seventwos.workspace.background.search-backfill</string>
 	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>

@@ -128,19 +128,19 @@ final nonisolated class AppSettings: @unchecked Sendable {
     ///
     /// Account provider is the friendly term for the server name. It should not contain an `https` prefix and should
     /// match the last part of the user ID. For example `example.com` and not `https://matrix.example.com`.
-    private(set) var accountProviders: [AccountProvider] = [.managed(serverName: "workspace.seventwos.org", baseURL: "https://workspace.seventwos.org")]
+    private(set) var accountProviders: [AccountProvider] = [.managed(serverName: "workspace.seventwos.com", baseURL: "https://workspace.seventwos.com")]
     /// Whether or not the user is allowed to manually enter their own account provider or must select from one of `defaultAccountProviders`.
     private(set) var allowOtherAccountProviders = true
     /// Whether the components surrounding the app brand/logo should be hidden or not
     private(set) var hideBrandChrome = false
     
     /// The task identifier used for background app refresh. Also used in main target's the Info.plist
-    let backgroundAppRefreshTaskIdentifier = "org.seventwos.workspace.background.refresh"
+    let backgroundAppRefreshTaskIdentifier = "com.seventwos.workspace.background.refresh"
     /// The task identifier used for the search index backfill. Also used in main target's the Info.plist
-    let searchBackfillTaskIdentifier = "org.seventwos.workspace.background.search-backfill"
+    let searchBackfillTaskIdentifier = "com.seventwos.workspace.background.search-backfill"
     
     /// A URL where users can go read more about the app.
-    private(set) var websiteURL: URL = "https://workspace.seventwos.org"
+    private(set) var websiteURL: URL = "https://workspace.seventwos.com"
     /// A URL that contains the app's logo that may be used when showing content in a web view.
     private(set) var logoURL: URL = "https://example.invalid/configure-seventwos-logo"
     /// A URL that contains that app's copyright notice.
@@ -161,9 +161,9 @@ final nonisolated class AppSettings: @unchecked Sendable {
     private(set) var historySharingDetailsURL: URL = "https://example.invalid/configure-seventwos-history-sharing-help"
     
     /// Any domains that Element web may be hosted on - used for handling links.
-    private(set) var elementWebHosts = ["workspace.seventwos.org"]
+    private(set) var elementWebHosts = ["workspace.seventwos.com"]
     /// The domain that account provisioning links will be hosted on - used for handling the links.
-    private(set) var accountProvisioningHost = "workspace.seventwos.org"
+    private(set) var accountProvisioningHost = "workspace.seventwos.com"
     /// The App Store URL for Element Pro, shown to the user when a homeserver requires that app.
     /// **Note:** This property isn't overridable as it in unexpected for forks to come across the error (or to even have a "Pro" app).
     let elementProAppStoreURL: URL = "https://apps.apple.com/app/element-pro-for-work/id6502951615"
@@ -201,7 +201,7 @@ final nonisolated class AppSettings: @unchecked Sendable {
     let oAuthStaticRegistrations: [URL: String] = [:]
     /// The redirect URL used for OAuth. For the normal case we don't actually need the bundle ID as the web authentication session handles the redirect internally.
     /// However in the case where MAS sends the user to an external app, we need to make sure that the system will open the correct variant of the app (e.g. Nightly).
-    private(set) nonisolated(unsafe) var oAuthRedirectURL: URL! = URL(string: "https://workspace.seventwos.org/oauth/ios/\(InfoPlistReader.main.bundleIdentifier)")
+    private(set) nonisolated(unsafe) var oAuthRedirectURL: URL! = URL(string: "https://workspace.seventwos.com/oauth/ios/\(InfoPlistReader.main.bundleIdentifier)")
     /// A path that is appended to `websiteURL` to form the OAuth `clientURI`. MAS uses `clientURI` as the identifier for a specific app, allowing us to
     /// distinguish the various clients we have for Android, iOS and Web from each other.
     /// Intentionally a distinct property so it can be easily overridden without having to manipulate the website URL.
@@ -232,7 +232,7 @@ final nonisolated class AppSettings: @unchecked Sendable {
         #endif
     }
     
-    private(set) var pushGatewayBaseURL: URL = "https://workspace.seventwos.org"
+    private(set) var pushGatewayBaseURL: URL = "https://workspace.seventwos.com"
     var pushGatewayNotifyEndpoint: URL {
         pushGatewayBaseURL.appending(path: "_matrix/push/v1/notify")
     }

@@ -27,8 +27,8 @@ Read `AGENTS.md` and `.seventwos/upstream-policy.json` first; `.seventwos/upstre
 
 ## Invariants (must hold after every intake)
 
-- App name/ids stay Seventwos (`Seventwos Workspace`, `org.seventwos.workspace`, `group.org.seventwos.workspace`) per `.seventwos/upstream-invariants.json`.
-- Default homeserver/endpoints stay `workspace.seventwos.org` in `AppSettings.swift`; no `element.io` / `vector.im` there.
+- App name/ids stay Seventwos (`Seventwos Workspace`, `com.seventwos.workspace`, `group.com.seventwos.workspace`) per `.seventwos/upstream-invariants.json`.
+- Default homeserver/endpoints stay `workspace.seventwos.com` in `AppSettings.swift`; no `element.io` / `vector.im` there.
 - `scripts/brand-guard.sh` passes.
 - No `element.io` / `riot.im` / `app.element.*` URLs outside `.brand-guard-allowlist`.
 - Signing team stays empty (`empty-signing-team` invariant).

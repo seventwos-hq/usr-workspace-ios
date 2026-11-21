@@ -259,8 +259,8 @@ def validate_workflow(root: Path, state: dict[str, Any]) -> None:
         if not isinstance(paths, list) or not POLICY_TRIGGER_PATHS.issubset(set(paths)):
             fail(f"{trigger} trigger must cover every policy-owned path")
     push_branches = triggers["push"].get("branches")
-    if not isinstance(push_branches, list) or "develop" not in push_branches:
-        fail("push trigger must include protected develop")
+    if not isinstance(push_branches, list) or "main" not in push_branches:
+        fail("push trigger must include protected main")
     if not isinstance(triggers.get("merge_group"), dict):
         fail("assessment workflow must trigger on merge_group")
     if not permission_map_is_read_only(workflow.get("permissions")):

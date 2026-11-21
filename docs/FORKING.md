@@ -7,17 +7,17 @@ The repository defaults to the Seventwos product identity:
 ```yaml
 APP_DISPLAY_NAME: Seventwos Workspace
 PRODUCTION_APP_NAME: Seventwos Workspace
-APP_GROUP_IDENTIFIER: group.org.seventwos.workspace
-BASE_BUNDLE_IDENTIFIER: org.seventwos.workspace
+APP_GROUP_IDENTIFIER: group.com.seventwos.workspace
+BASE_BUNDLE_IDENTIFIER: com.seventwos.workspace
 ```
 
 `DEVELOPMENT_TEAM` is intentionally empty because no Seventwos Apple Developer account exists yet. This permits unsigned simulator development without inheriting Element's signing identity. Set the team through secured release automation or a local build-setting override after the account exists, then run `xcodegen` to regenerate the project. Do not commit signing certificates, provisioning profiles, App Store Connect keys, or team credentials.
 
-The production application domain is `workspace.seventwos.org`. The checked-in associated-domain, OAuth redirect, account-provider, provisioning-host, and push-gateway defaults use that domain. Before enabling those capabilities in a signed build, Seventwos infrastructure must provide:
+The production application domain is `workspace.seventwos.com`. The checked-in associated-domain, OAuth redirect, account-provider, provisioning-host, and push-gateway defaults use that domain. Before enabling those capabilities in a signed build, Seventwos infrastructure must provide:
 
 - Matrix client discovery and the push gateway expected by the app.
-- `apple-app-site-association` entries for `applinks` and `webcredentials` covering `org.seventwos.workspace`.
-- The OAuth callback path `/oauth/ios/org.seventwos.workspace` and matching MAS client metadata.
+- `apple-app-site-association` entries for `applinks` and `webcredentials` covering `com.seventwos.workspace`.
+- The OAuth callback path `/oauth/ios/com.seventwos.workspace` and matching MAS client metadata.
 
 ## Runtime configuration
 
@@ -40,7 +40,7 @@ Both the manual **Release Readiness** workflow and the Xcode Cloud `release-to-g
 Before creating a production archive:
 
 1. Create Seventwos Apple Developer and App Store Connect accounts; configure the team, certificates, identifiers, app group, push entitlement, and provisioning profiles outside the repository.
-2. Provision and verify the `workspace.seventwos.org` Matrix, OAuth, associated-domain, account-provisioning, and push services.
+2. Provision and verify the `workspace.seventwos.com` Matrix, OAuth, associated-domain, account-provisioning, and push services.
 3. Publish approved legal, privacy, support, security, logo, and encryption-help pages, then replace all `example.invalid` placeholders.
 4. Keep analytics, hosted diagnostics, maps, and call telemetry disabled unless Seventwos-owned endpoints and credentials are supplied through secret storage.
 5. Run `xcodegen`, build and test the Release configuration, and manually run the **Release Readiness** workflow.

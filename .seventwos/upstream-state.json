@@ -1,30 +1,30 @@
 {
   "schema_version": 1,
-  "recorded_at": "2026-10-18T09:46:17Z",
+  "recorded_at": "2026-11-21T07:50:00Z",
   "fork": {
     "repository": "seventwos-hq/usr-workspace-ios",
-    "default_branch": "develop",
-    "develop_sha": "35f475851662c071b4481795802e827862d5dbf3",
-    "head_sha": "dc18272f6b6e8865a45a59b66f97d769c27bc638",
+    "default_branch": "main",
+    "develop_sha": "7927352def6576b7ace55159aeb24b95f5f31709",
+    "head_sha": "7927352def6576b7ace55159aeb24b95f5f31709",
     "evidence": {
-      "method": "git rev-parse HEAD; git ls-remote origin refs/heads/develop; git merge-base HEAD 35f475851662c071b4481795802e827862d5dbf3",
-      "observed_at": "2026-10-18T09:46:17Z"
+      "method": "git rev-parse HEAD; git ls-remote origin refs/heads/main; git merge-base HEAD 7927352def6576b7ace55159aeb24b95f5f31709",
+      "observed_at": "2026-11-21T07:50:00Z"
     }
   },
   "upstream": {
     "repository": "element-hq/element-x-ios",
     "branch": "develop",
-    "sha": "734c0678fa2affe485746126458fca888639e608",
+    "sha": "1e15227ccffa6f20dc78c9f12e6dbb778477faa9",
     "evidence": {
       "method": "git ls-remote https://github.com/element-hq/element-x-ios.git refs/heads/develop",
-      "observed_at": "2026-10-18T09:46:17Z"
+      "observed_at": "2026-11-21T07:50:00Z"
     }
   },
   "merge_bases": {
     "fork_head_to_fork_develop": {
-      "sha": "35f475851662c071b4481795802e827862d5dbf3",
+      "sha": "7927352def6576b7ace55159aeb24b95f5f31709",
       "status": "observed",
-      "evidence": "git merge-base of the observed fork head and fork develop resolved to 35f475851662c071b4481795802e827862d5dbf3."
+      "evidence": "git merge-base of the observed fork head and fork main resolved to 7927352def6576b7ace55159aeb24b95f5f31709."
     },
     "fork_develop_to_upstream_develop": {
       "sha": null,

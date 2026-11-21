@@ -402,7 +402,7 @@ struct CallScreen_Previews: PreviewProvider {
         return CallScreenViewModel(userSession: UserSessionMock(.init()),
                                    configuration: .init(roomProxy: roomProxy,
                                                         clientProxy: clientProxy,
-                                                        clientID: "org.seventwos.workspace",
+                                                        clientID: "com.seventwos.workspace",
                                                         elementCallBaseURL: "https://call.element.io",
                                                         elementCallBaseURLOverride: nil,
                                                         voiceOnly: false,

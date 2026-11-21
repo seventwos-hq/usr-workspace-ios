@@ -50,9 +50,9 @@ Because `Seventwos/Sources` contains both inherited Element X Swift files and Se
   - Add new screens as self-contained MVVM-C folders under `Seventwos/Sources/Screens/<ScreenName>/` (using `Tools/Scripts/Templates/SimpleScreenExample/`) and new Rust SDK/service wrappers under `Seventwos/Sources/Services/<Feature>/`.
   - Wire navigation and feature entrypoints through `Seventwos/Sources/FlowCoordinators/` (`AppCoordinator.swift`, `UserSessionFlowCoordinator.swift`) so inherited screens stay close to upstream.
 - **Product identity, bundle identifiers & target configuration (`product-identity`, `empty-signing-team` in `.seventwos/upstream-invariants.json`)**:
-  - `app.yml` and `project.yml` — define `APP_DISPLAY_NAME: Seventwos Workspace`, `PRODUCTION_APP_NAME: Seventwos Workspace`, `BASE_BUNDLE_IDENTIFIER: org.seventwos.workspace`, and `APP_GROUP_IDENTIFIER: group.org.seventwos.workspace`.
+  - `app.yml` and `project.yml` — define `APP_DISPLAY_NAME: Seventwos Workspace`, `PRODUCTION_APP_NAME: Seventwos Workspace`, `BASE_BUNDLE_IDENTIFIER: com.seventwos.workspace`, and `APP_GROUP_IDENTIFIER: group.com.seventwos.workspace`.
 - **Seventwos endpoints, telemetry gating & release readiness (`seventwos-endpoints`, `inherited-telemetry-disabled`, `release-readiness-fails-closed`)**:
-  - `Seventwos/Sources/Application/Settings/AppSettings.swift` — configures `workspace.seventwos.org` endpoints and forbids upstream `element.io` / `vector.im` defaults.
+  - `Seventwos/Sources/Application/Settings/AppSettings.swift` — configures `workspace.seventwos.com` endpoints and forbids upstream `element.io` / `vector.im` defaults.
   - `Components/Secrets/Secrets.swift` — disables inherited Sentry, PostHog, and rageshake telemetry (`nil`).
   - `ci_scripts/validate_release_readiness.sh` — fail-closed check preventing release with placeholder or upstream service configuration.
 - **Design system & shared UI**:

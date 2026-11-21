@@ -46,7 +46,7 @@ nonisolated class AudioRecorder: AudioRecorderProtocol, @unchecked Sendable {
         audioEngine?.isRunning ?? false
     }
     
-    private let dispatchQueue = DispatchQueue(label: "org.seventwos.workspace.audio_recorder", qos: .userInitiated)
+    private let dispatchQueue = DispatchQueue(label: "com.seventwos.workspace.audio_recorder", qos: .userInitiated)
     private var stopped = false
     
     init(audioSession: AudioSessionProtocol = AVAudioSession.sharedInstance()) {
